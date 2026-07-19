@@ -1316,6 +1316,13 @@ function Section:CreateDropdown(config)
 
     local dropdown = {_selected = default, _isOpen = false}
     local f = compFrame(self, "Drop_" .. name)
+    local container = Instance.new("Frame")
+    container.Name = "Container_" .. name
+    container.Size = UDim2.new(1, 0, 0, 50)
+    container.BackgroundTransparency = 1
+    container.LayoutOrder = f.LayoutOrder
+    container.Parent = self._tab._scroll
+    f.Parent = container
     compLabel(f, name)
 
     local header = Instance.new("TextButton", f)
@@ -1361,7 +1368,7 @@ function Section:CreateDropdown(config)
         local targetH = state and math.min(#options * 34, 150) or 0
         local tw = TweenService:Create(ddList, TI.HIn, {Size = UDim2.new(0, 150, 0, targetH)})
         tw:Play()
-        TweenService:Create(f, TI.HIn, {Size = UDim2.new(1, 0, 0, 42 + targetH)}):Play()
+        TweenService:Create(container, TI.HIn, {Size = UDim2.new(1, 0, 0, 42 + targetH)}):Play()
         tw.Completed:Connect(function() if not dropdown._isOpen then ddList.Visible = false end end)
         header.Text = dropdown._selected or "Select..."
     end
