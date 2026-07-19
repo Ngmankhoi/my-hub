@@ -1037,6 +1037,8 @@ function Window:CreateTab(name)
 
     table.insert(self._tabs, t)
 
+    self._activeTab = t
+    
     if isFirst then
         self._activeTab = t
     end
@@ -1662,8 +1664,7 @@ function Tab:CreateFeaturedCard(config)
 
     local tag = Instance.new("TextLabel", f)
     tag.Size = UDim2.new(0, 80, 0, 20)
-    tag.AnchorPoint = Vector2.new(0.5, 0)
-    tag.Position = UDim2.new(0.5, -60, 0, 15)
+    tag.Position = UDim2.new(0, 15, 0, 15)
     tag.BackgroundColor3 = Theme.ToggleOff
     tag.BorderSizePixel = 0
     tag.Text = "FEATURED"
@@ -1674,23 +1675,24 @@ function Tab:CreateFeaturedCard(config)
 
     local tl = Instance.new("TextLabel", f)
     tl.Size = UDim2.new(1, -120, 0, 25)
-    tl.Position = UDim2.new(0, 0, 0, 40)
+    tl.Position = UDim2.new(0, 15, 0, 40)
     tl.BackgroundTransparency = 1
     tl.Text = title
     tl.TextColor3 = Theme.Text
     tl.TextSize = 18
     tl.Font = Theme.Bold
-    tl.TextXAlignment = Enum.TextXAlignment.Center
+    tl.TextXAlignment = Enum.TextXAlignment.Left
 
     local sl = Instance.new("TextLabel", f)
-    sl.Size = UDim2.new(1, -120, 0, 20)
-    sl.Position = UDim2.new(0, 0, 0, 65)
+    sl.Size = UDim2.new(1, -120, 0, 40)
+    sl.Position = UDim2.new(0, 15, 0, 65)
     sl.BackgroundTransparency = 1
     sl.Text = desc
     sl.TextColor3 = Theme.TextSub
     sl.TextSize = 12
     sl.Font = Theme.Medium
-    sl.TextXAlignment = Enum.TextXAlignment.Center
+    sl.TextWrapped = true
+    sl.TextXAlignment = Enum.TextXAlignment.Left
 
     local btn = Instance.new("TextButton", f)
     btn.Size = UDim2.new(0, 120, 0, 32)
