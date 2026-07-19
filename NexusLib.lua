@@ -1,8 +1,3 @@
--- =====================================================
--- NEXUS GAMING HUB UI LIBRARY (NexusLib)
--- =====================================================
-
-local NexusLib = {}
 --[[
     ╔════════════════════════════════════════════════╗
     ║         NexusLib UI Library v1.0               ║
@@ -281,12 +276,12 @@ function NexusLib:Notify(config)
 
     if not self._notifContainer or not self._notifContainer.Parent then return end
 
-    local notif = Instance.new("Frame")
+    local notif = Instance.new("CanvasGroup")
     notif.Name = "Notification"
     notif.Size = UDim2.new(1, 0, 0, 0)
     notif.BackgroundTransparency = 1
     notif.BorderSizePixel = 0
-    notif.ClipsDescendants = true
+    notif.GroupTransparency = 1
     local targetSize = UDim2.new(1, 0, 0, 72)
 
     local inner = Instance.new("Frame")
@@ -439,7 +434,8 @@ function NexusLib:Notify(config)
 
     notif.Parent = self._notifContainer
 
-    -- Entrance Animation
+    -- Tilt Entrance Animation
+    notif.Rotation = 8
 
     local expandTween = TweenService:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = targetSize})
     expandTween:Play()
@@ -448,7 +444,8 @@ function NexusLib:Notify(config)
     local slideTween = TweenService:Create(inner, TweenInfo.new(0.55, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 0)})
     slideTween:Play()
 
-
+    TweenService:Create(notif, TweenInfo.new(0.68, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {Rotation = 0}):Play()
+    TweenService:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {GroupTransparency = 0}):Play()
 
     local hoverIn = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     local hoverOut = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -468,7 +465,10 @@ function NexusLib:Notify(config)
             Position = UDim2.new(1.3, 0, 0, 0)
         })
         slideOut:Play()
-        -- No rotation during close
+        TweenService:Create(notif, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            Rotation = -10,
+            GroupTransparency = 1
+        }):Play()
 
         slideOut.Completed:Connect(function()
             local collapse = TweenService:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.new(1, 0, 0, 0)})
@@ -523,8 +523,7 @@ function NexusLib:CreateWindow(config)
     local mob = Instance.new("TextButton")
     mob.Name = "MobileBtn"
     mob.Size = UDim2.new(0, 50, 0, 50)
-    mob.Position = UDim2.new(0, 45, 0.5, 0)
-    mob.AnchorPoint = Vector2.new(0.5, 0.5)
+    mob.Position = UDim2.new(0, 20, 0.5, -25)
     mob.BackgroundColor3 = Color3.new(1,1,1)
     mob.BackgroundTransparency = 0.15
     mob.BorderSizePixel = 0
@@ -569,10 +568,6 @@ function NexusLib:CreateWindow(config)
         ColorSequenceKeypoint.new(1, Theme.BgGrad2)
     })
     mpGrad.Rotation = 160
-    
-    local mpScale = Instance.new("UIScale", mp)
-    mpScale.Scale = 1
-    w._scale = mpScale
     w._mp = mp
 
     -- Sidebar
@@ -780,31 +775,14 @@ function NexusLib:CreateWindow(config)
         if w._tweening then return end
         w._tweening = true
         mp.ClipsDescendants = true
-        
-        -- Animation: Shrink and Fade
-        local tScale = TweenService:Create(w._scale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0 })
-        TweenService:Create(mp, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { BackgroundTransparency = 1 }):Play()
-        
-        for _, v in pairs(mp:GetDescendants()) do
-            pcall(function()
-                if v:IsA("TextLabel") or v:IsA("TextButton") or v:IsA("TextBox") then
-                    TweenService:Create(v, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {TextTransparency = 1, BackgroundTransparency = 1}):Play()
-                elseif v:IsA("ImageLabel") or v:IsA("ImageButton") then
-                    TweenService:Create(v, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {ImageTransparency = 1, BackgroundTransparency = 1}):Play()
-                elseif v:IsA("Frame") or v:IsA("ScrollingFrame") then
-                    TweenService:Create(v, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
-                elseif v:IsA("UIStroke") then
-                    TweenService:Create(v, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Transparency = 1}):Play()
-                end
-            end)
-        end
-        
+        local t = TweenService:Create(mp, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            Size = UDim2.new(0,0,0,0), BackgroundTransparency = 1
+        })
         TweenService:Create(mob, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
             Size = UDim2.new(0,0,0,0), BackgroundTransparency = 1
         }):Play()
-        
-        tScale:Play()
-        tScale.Completed:Connect(function() sg:Destroy() end)
+        t:Play()
+        t.Completed:Connect(function() sg:Destroy() end)
     end)
     applyBouncy(cb, 1.1, 0.85, origSizes.cb)
     cb.MouseEnter:Connect(function() TweenService:Create(cb, TI.HIn, {BackgroundColor3 = Theme.CloseHover, TextColor3 = Color3.new(1,1,1)}):Play() end)
@@ -831,7 +809,7 @@ function NexusLib:CreateWindow(config)
         task.wait(0.1)
         w:_playIntro()
         task.wait(1)
-        NexusLib:Notify({Title = title .. " Premium", Message = "loaded successfully!", Duration = 5})
+        NexusLib:Notify({Title = title .. " Premium", Message = "UI Library loaded successfully!", Duration = 5})
     end)
 
     return w
@@ -1002,32 +980,22 @@ function Window:CreateTab(name)
     -- Scroll Frame
     local sf = Instance.new("ScrollingFrame")
     sf.Name = "Scroll"
-    sf.Size = UDim2.new(1, -6, 1, 0)
-    sf.Position = UDim2.new(0, 0, 0, 0)
+    sf.Size = UDim2.new(1, 0, 1, 0)
     sf.BackgroundTransparency = 1
     sf.BorderSizePixel = 0
-    sf.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
     sf.ScrollBarThickness = 3
     sf.ScrollBarImageColor3 = Theme.Accent
     sf.ScrollBarImageTransparency = 0.5
     sf.Parent = view
 
-    local wrapper = Instance.new("Frame")
-    wrapper.Name = "Wrapper"
-    wrapper.Size = UDim2.new(1, -18, 1, 0)
-    wrapper.Position = UDim2.new(0, 12, 0, 0)
-    wrapper.BackgroundTransparency = 1
-    wrapper.Parent = sf
-
-    local sfl = Instance.new("UIListLayout", wrapper)
+    local sfl = Instance.new("UIListLayout", sf)
     sfl.Padding = UDim.new(0, 10)
     sfl.SortOrder = Enum.SortOrder.LayoutOrder
 
     sfl:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
         sf.CanvasSize = UDim2.new(0, 0, 0, sfl.AbsoluteContentSize.Y + 15)
-        wrapper.Size = UDim2.new(1, -18, 0, sfl.AbsoluteContentSize.Y + 15)
     end)
-    t._scroll = wrapper
+    t._scroll = sf
 
     -- Tab switching
     btn.MouseButton1Click:Connect(function()
@@ -1323,7 +1291,7 @@ function Section:CreateDropdown(config)
     header.Size = UDim2.new(0, 150, 0, 32)
     header.Position = UDim2.new(1, -170, 0.5, -16)
     header.BackgroundColor3 = Theme.DropBg
-    header.Text = default or "Select..."
+    header.Text = default or "Select... v"
     header.TextColor3 = Theme.Text
     header.Font = Theme.Bold
     header.TextSize = 11
@@ -1339,41 +1307,27 @@ function Section:CreateDropdown(config)
     ddList.BorderSizePixel = 0
     ddList.ZIndex = 10
     ddList.Visible = false
-    ddList.ClipsDescendants = true
     corner(ddList, 8)
     uistroke(ddList, Theme.DropStroke, 1)
-    
-    local sf = Instance.new("ScrollingFrame", ddList)
-    sf.Size = UDim2.new(1, 0, 1, 0)
-    sf.BackgroundTransparency = 1
-    sf.BorderSizePixel = 0
-    sf.ScrollBarThickness = 2
-    sf.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    sf.CanvasSize = UDim2.new(0, 0, 0, 0)
-
-    local listLayout = Instance.new("UIListLayout", sf)
-    listLayout.Padding = UDim.new(0, 4)
-    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    Instance.new("UIListLayout", ddList).Padding = UDim.new(0, 4)
 
     local function setOpen(state)
         dropdown._isOpen = state
         ddList.Visible = true
-        local targetH = state and math.min(#options * 34, 150) or 0
-        local tw = TweenService:Create(ddList, TI.HIn, {Size = UDim2.new(0, 150, 0, targetH)})
+        local h = state and (#options * 34) or 0
+        local tw = TweenService:Create(ddList, TI.HIn, {Size = UDim2.new(0, 150, 0, h)})
         tw:Play()
-        TweenService:Create(f, TI.HIn, {Size = UDim2.new(1, 0, 0, 42 + targetH)}):Play()
         tw.Completed:Connect(function() if not dropdown._isOpen then ddList.Visible = false end end)
-        header.Text = dropdown._selected or "Select..."
+        header.Text = state and ((dropdown._selected or "Select...") .. " ^") or ((dropdown._selected or "Select...") .. " v")
     end
 
     local function populateOptions(opts)
-        for _, c in ipairs(sf:GetChildren()) do
+        for _, c in ipairs(ddList:GetChildren()) do
             if c:IsA("TextButton") then c:Destroy() end
         end
         for i, optName in ipairs(opts) do
-            local ob = Instance.new("TextButton", sf)
+            local ob = Instance.new("TextButton", ddList)
             ob.Name = "Opt_" .. i
-            ob.LayoutOrder = i
             ob.Size = UDim2.new(1, 0, 0, 30)
             ob.BackgroundColor3 = Theme.DropOpt
             ob.BackgroundTransparency = 0.5
@@ -1391,7 +1345,7 @@ function Section:CreateDropdown(config)
             ob.MouseButton1Click:Connect(function()
                 dropdown._selected = optName
                 setOpen(false)
-                header.Text = optName
+                header.Text = optName .. " v"
                 task.spawn(callback, optName)
             end)
         end
@@ -1406,7 +1360,7 @@ function Section:CreateDropdown(config)
         setOpen(not dropdown._isOpen)
     end)
 
-    function dropdown:Set(opt) dropdown._selected = opt; header.Text = opt; task.spawn(callback, opt) end
+    function dropdown:Set(opt) dropdown._selected = opt; header.Text = opt .. " v"; task.spawn(callback, opt) end
     function dropdown:Refresh(opts) options = opts; populateOptions(opts) end
     function dropdown:Get() return self._selected end
     dropdown._frame = f
@@ -1422,50 +1376,39 @@ function Section:CreateButton(config)
 
     self._tab._orderCounter = self._tab._orderCounter + 1
 
-    local container = Instance.new("Frame")
-    container.Name = "Btn_" .. name
-    container.Size = UDim2.new(1, 0, 0, 42)
-    container.BackgroundTransparency = 1
-    container.LayoutOrder = self._tab._orderCounter
-    container.Parent = self._tab._scroll
-
-    local btn = Instance.new("TextButton", container)
-    btn.Name = "TextButton"
-    btn.Size = UDim2.new(1, 0, 1, 0)
-    btn.AnchorPoint = Vector2.new(0.5, 0.5)
-    btn.Position = UDim2.new(0.5, 0, 0.5, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(35, 30, 65)
+    local btn = Instance.new("TextButton")
+    btn.Name = "Btn_" .. name
+    btn.Size = UDim2.new(1, 0, 0, 42)
+    btn.BackgroundColor3 = Color3.fromRGB(120, 70, 255)
     btn.BorderSizePixel = 0
     btn.Text = name
     btn.TextColor3 = Theme.Text
     btn.Font = Theme.Bold
     btn.TextSize = 13
     btn.AutoButtonColor = false
+    btn.LayoutOrder = self._tab._orderCounter
+    btn.Parent = self._tab._scroll
     corner(btn, 10)
-    
-    local stroke = uistroke(btn, Color3.fromRGB(150, 100, 255), 1)
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+
+    local bg = Instance.new("UIGradient", btn)
+    bg.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(140, 80, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(90, 40, 210))
+    })
+    bg.Rotation = 90
 
     applyBouncy(btn, 1.04, 0.92)
 
-    local ts = game:GetService("TweenService")
-    local ti = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    btn.MouseEnter:Connect(function()
-        ts:Create(btn, ti, {BackgroundColor3 = Color3.fromRGB(60, 50, 100)}):Play()
-    end)
-    btn.MouseLeave:Connect(function()
-        ts:Create(btn, ti, {BackgroundColor3 = Color3.fromRGB(35, 30, 65)}):Play()
-    end)
-
     btn.MouseButton1Click:Connect(function()
-        local orig = Color3.fromRGB(35, 30, 65)
-        TweenService:Create(btn, TI.Click, {BackgroundColor3 = Color3.fromRGB(180, 140, 255)}):Play()
+        -- Flash effect
+        local orig = btn.BackgroundColor3
+        TweenService:Create(btn, TI.Click, {BackgroundColor3 = Color3.new(1, 1, 1)}):Play()
         task.wait(0.1)
         TweenService:Create(btn, TI.Spring, {BackgroundColor3 = orig}):Play()
         task.spawn(callback)
     end)
 
-    return {_frame = container}
+    return {_frame = btn}
 end
 
 -- ─────────── TEXTBOX ───────────
@@ -1605,29 +1548,28 @@ function Tab:CreateStatRow(stats)
         sf.BackgroundTransparency = Theme.CardTransparency
         sf.BorderSizePixel = 0
         corner(sf, 10)
-        local stroke = uistroke(sf, stat.Color or Theme.StrokeCard, 1)
-        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        uistroke(sf, stat.Color or Theme.StrokeCard, 1)
 
         local val = Instance.new("TextLabel", sf)
-        val.Size = UDim2.new(1, -20, 0.6, 0)
-        val.Position = UDim2.new(0, 10, 0, 0)
+        val.Size = UDim2.new(1, 0, 0.6, 0)
+        val.Position = UDim2.new(0, 0, 0, 0)
         val.BackgroundTransparency = 1
         val.Text = stat.Value or "0"
         val.TextColor3 = Theme.Text
         val.TextSize = 20
         val.Font = Theme.Bold
-        val.TextXAlignment = Enum.TextXAlignment.Left
+        val.TextXAlignment = Enum.TextXAlignment.Center
         val.TextYAlignment = Enum.TextYAlignment.Bottom
 
         local title = Instance.new("TextLabel", sf)
-        title.Size = UDim2.new(1, -20, 0.4, 0)
-        title.Position = UDim2.new(0, 10, 0.6, 0)
+        title.Size = UDim2.new(1, 0, 0.4, 0)
+        title.Position = UDim2.new(0, 0, 0.6, 0)
         title.BackgroundTransparency = 1
-        title.Text = stat.Title or "Stat"
+        title.Text = stat.Name or stat.Title or "Stat"
         title.TextColor3 = Theme.TextSub
         title.TextSize = 12
         title.Font = Theme.Medium
-        title.TextXAlignment = Enum.TextXAlignment.Left
+        title.TextXAlignment = Enum.TextXAlignment.Center
         title.TextYAlignment = Enum.TextYAlignment.Center
     end
 
@@ -1644,7 +1586,7 @@ function Tab:CreateFeaturedCard(config)
     self._orderCounter = self._orderCounter + 1
     local f = Instance.new("Frame")
     f.Name = "FeaturedCard"
-    f.Size = UDim2.new(1, 0, 0, 140)
+    f.Size = UDim2.new(1, 0, 0, 160)
     f.BackgroundColor3 = Theme.CardBg
     f.BackgroundTransparency = Theme.CardTransparency
     f.BorderSizePixel = 0
@@ -1675,18 +1617,20 @@ function Tab:CreateFeaturedCard(config)
     tl.TextXAlignment = Enum.TextXAlignment.Left
 
     local sl = Instance.new("TextLabel", f)
-    sl.Size = UDim2.new(0.6, 0, 0, 20)
+    sl.Size = UDim2.new(0.6, 0, 0, 40)
     sl.Position = UDim2.new(0, 15, 0, 65)
     sl.BackgroundTransparency = 1
     sl.Text = desc
     sl.TextColor3 = Theme.TextSub
     sl.TextSize = 12
     sl.Font = Theme.Medium
+    sl.TextWrapped = true
     sl.TextXAlignment = Enum.TextXAlignment.Left
+    sl.TextYAlignment = Enum.TextYAlignment.Top
 
     local btn = Instance.new("TextButton", f)
     btn.Size = UDim2.new(0, 120, 0, 32)
-    btn.Position = UDim2.new(0, 15, 0, 95)
+    btn.Position = UDim2.new(0, 15, 0, 115)
     btn.BackgroundColor3 = Theme.Accent
     btn.BorderSizePixel = 0
     btn.Text = btnText
@@ -1758,25 +1702,16 @@ function Tab:CreateActionRow(actions)
     local offset = (count - 1) * 10 / count
 
     for i, act in ipairs(actions) do
-        local container = Instance.new("Frame", f)
-        container.Name = "ActionContainer_" .. i
-        container.Size = UDim2.new(width, -offset, 1, 0)
-        container.BackgroundTransparency = 1
-
-        local btn = Instance.new("TextButton", container)
+        local btn = Instance.new("TextButton", f)
         btn.Name = "Action_" .. i
-        btn.Size = UDim2.new(1, 0, 1, 0)
-        btn.AnchorPoint = Vector2.new(0.5, 0.5)
-        btn.Position = UDim2.new(0.5, 0, 0.5, 0)
-        btn.BackgroundColor3 = Color3.fromRGB(35, 30, 65)
-        btn.BackgroundTransparency = 0
+        btn.Size = UDim2.new(width, -offset, 1, 0)
+        btn.BackgroundColor3 = Theme.CardBg
+        btn.BackgroundTransparency = Theme.CardTransparency
         btn.BorderSizePixel = 0
         btn.Text = ""
         btn.AutoButtonColor = false
         corner(btn, 10)
-        
-        local stroke = uistroke(btn, Color3.fromRGB(150, 100, 255), 1)
-        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+        uistroke(btn, Theme.StrokeCard, 1)
 
         local colorBar = Instance.new("Frame", btn)
         colorBar.Size = UDim2.new(0.6, 0, 0, 3)
@@ -1809,125 +1744,6 @@ function Tab:CreateActionRow(actions)
     return {_frame = f}
 end
 
--- ─────────── CARD GROUP ───────────
-function Tab:CreateCardGroup(cards)
-    cards = cards or {}
-    
-    self._orderCounter = self._orderCounter + 1
-    
-    local f = Instance.new("Frame")
-    f.Name = "CardGroup"
-    f.Size = UDim2.new(1, 0, 0, 150)
-    f.BackgroundTransparency = 1
-    f.LayoutOrder = self._orderCounter
-    f.Parent = self._scroll
-    
-    local layout = Instance.new("UIListLayout", f)
-    layout.FillDirection = Enum.FillDirection.Horizontal
-    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout.Padding = UDim.new(0, 10)
-    
-    local count = #cards
-    local width = (1 / count)
-    local offset = (count - 1) * 10 / count
-    
-    for i, cardData in ipairs(cards) do
-        local container = Instance.new("Frame", f)
-        container.Name = "CardContainer_" .. i
-        container.Size = UDim2.new(width, -offset, 1, 0)
-        container.BackgroundTransparency = 1
-        container.LayoutOrder = i
-
-        local card = Instance.new("TextButton", container)
-        card.Name = "Card"
-        card.Size = UDim2.new(1, 0, 1, 0)
-        card.AnchorPoint = Vector2.new(0.5, 0.5)
-        card.Position = UDim2.new(0.5, 0, 0.5, 0)
-        card.BackgroundColor3 = Color3.fromRGB(30, 25, 55)
-        card.BorderSizePixel = 0
-        card.Text = ""
-        card.AutoButtonColor = false
-        corner(card, 10)
-        
-        local strokeColor = cardData.StrokeColor or Theme.StrokeCard
-        local stroke = uistroke(card, strokeColor, 1.2)
-        stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
-        
-        local icon = nil
-        if cardData.Icon then
-            icon = Instance.new("ImageLabel", card)
-            icon.Name = "Icon"
-            icon.Size = UDim2.new(0, 40, 0, 40)
-            icon.Position = UDim2.new(0.5, -20, 0, 15)
-            icon.BackgroundTransparency = 1
-            icon.Image = cardData.Icon
-        end
-        
-        local title = Instance.new("TextLabel", card)
-        title.Name = "Title"
-        title.Size = UDim2.new(1, -20, 0, 20)
-        title.Position = UDim2.new(0, 10, 0, 60)
-        title.BackgroundTransparency = 1
-        title.Text = cardData.Title or ""
-        title.TextColor3 = Theme.Text
-        title.Font = Theme.Bold
-        title.TextSize = 13
-        title.TextXAlignment = Enum.TextXAlignment.Center
-        
-        local desc = Instance.new("TextLabel", card)
-        desc.Name = "Desc"
-        desc.Size = UDim2.new(1, -10, 0, 30)
-        desc.Position = UDim2.new(0, 5, 0, 80)
-        desc.BackgroundTransparency = 1
-        desc.Text = cardData.Description or ""
-        desc.TextColor3 = Theme.TextSub
-        desc.Font = Theme.Medium
-        desc.TextSize = 10
-        desc.TextWrapped = true
-        desc.TextXAlignment = Enum.TextXAlignment.Center
-        desc.TextYAlignment = Enum.TextYAlignment.Top
-        
-        if cardData.ButtonText then
-            local btn = Instance.new("TextButton", card)
-            btn.Name = "ActionButton"
-            btn.Size = UDim2.new(1, -20, 0, 25)
-            btn.Position = UDim2.new(0, 10, 1, -35)
-            btn.BackgroundColor3 = Color3.fromRGB(120, 70, 255)
-            btn.BorderSizePixel = 0
-            btn.Text = cardData.ButtonText
-            btn.TextColor3 = Theme.Text
-            btn.Font = Theme.Bold
-            btn.TextSize = 11
-            btn.AutoButtonColor = false
-            corner(btn, 6)
-            
-            applyBouncy(btn, 1.05, 0.95)
-            
-            btn.MouseButton1Click:Connect(function()
-                local orig = btn.BackgroundColor3
-                TweenService:Create(btn, TI.Click, {BackgroundColor3 = Color3.fromRGB(180, 140, 255)}):Play()
-                task.wait(0.1)
-                TweenService:Create(btn, TI.Spring, {BackgroundColor3 = orig}):Play()
-                if cardData.Callback then task.spawn(cardData.Callback) end
-            end)
-        else
-            if cardData.Callback then
-                applyBouncy(card, 1.05, 0.95)
-                
-                card.MouseButton1Click:Connect(function()
-                    TweenService:Create(card, TI.Click, {BackgroundColor3 = Color3.fromRGB(45, 40, 75)}):Play()
-                    task.wait(0.1)
-                    TweenService:Create(card, TI.Spring, {BackgroundColor3 = Color3.fromRGB(30, 25, 55)}):Play()
-                    task.spawn(cardData.Callback)
-                end)
-            end
-        end
-    end
-    
-    return {_frame = f}
-end
-
 -- ═══════════════════════════════════════════════════
 -- DESTROY ALL
 -- ═══════════════════════════════════════════════════
@@ -1938,7 +1754,214 @@ function NexusLib:DestroyAll()
     if self._connections then
         for _, c in ipairs(self._connections) do pcall(function() c:Disconnect() end) end
     end
-    return self
 end
 
-return NexusLib
+
+--[[
+    NexusLib Example Usage
+    Demonstrates how to use NexusLib UI Library
+    
+    For Roblox Studio: Place NexusLib.lua as ModuleScript, then require() it
+    For Executors: loadstring the NexusLib source, then use this code
+]]
+
+-- In Studio, use: local NexusLib = require(path.to.NexusLib)
+-- In Executor, use: local NexusLib = loadstring(game:HttpGet("url"))()
+-- For testing, we'll require directly:
+local NexusLib = require(script.Parent:WaitForChild("NexusLib"))
+
+-- ═══════════════════════════════════════════
+-- 1. CREATE WINDOW
+-- ═══════════════════════════════════════════
+local Window = NexusLib:CreateWindow({
+    Title = "Nexus",
+    Subtitle = "Gaming Hub",
+    Keybind = Enum.KeyCode.RightShift  -- Press RightShift to toggle menu
+})
+
+-- ═══════════════════════════════════════════
+-- 2. CREATE TABS
+-- ═══════════════════════════════════════════
+local HomeTab = Window:CreateTab("Home")
+local ModulesTab = Window:CreateTab("Modules")
+local SettingsTab = Window:CreateTab("Settings")
+
+-- ═══════════════════════════════════════════
+-- 3. HOME TAB (DASHBOARD)
+-- ═══════════════════════════════════════════
+HomeTab:CreateHeader({
+    Title = "Welcome back, Player!",
+    Subtitle = "Ready for your next adventure?"
+})
+
+HomeTab:CreateStatRow({
+    {Title = "Level", Value = "47", Color = Color3.fromRGB(150, 80, 255)},
+    {Title = "Coins", Value = "12,450", Color = Color3.fromRGB(255, 180, 50)},
+    {Title = "Wins", Value = "286", Color = Color3.fromRGB(0, 160, 255)}
+})
+
+HomeTab:CreateFeaturedCard({
+    Title = "Season 5: Cosmic Rift",
+    Description = "Explore the Cosmic Rift and unlock exclusive rewards.",
+    ButtonText = "PLAY NOW",
+    Callback = function()
+        NexusLib:Notify({Title = "Play", Message = "Teleporting to Cosmic Rift...", Duration = 3})
+    end
+})
+
+HomeTab:CreateActionRow({
+    {Name = "Daily Rewards", Color = Color3.fromRGB(255, 80, 80), Callback = function() end},
+    {Name = "Invite Friends", Color = Color3.fromRGB(80, 160, 255), Callback = function() end},
+    {Name = "Battle Pass", Color = Color3.fromRGB(255, 200, 80), Callback = function() end},
+    {Name = "Game Modes", Color = Color3.fromRGB(80, 255, 150), Callback = function() end}
+})
+
+-- ═══════════════════════════════════════════
+-- 4. MODULES TAB
+-- ═══════════════════════════════════════════
+local CharSection = ModulesTab:CreateSection("Character Options")
+
+local speedSlider = CharSection:CreateSlider({
+    Name = "WalkSpeed",
+    Min = 16,
+    Max = 200,
+    Default = 16,
+    Increment = 1,
+    Callback = function(value)
+        local player = game.Players.LocalPlayer
+        if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+            player.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = value
+        end
+    end
+})
+
+local jumpToggle = CharSection:CreateToggle({
+    Name = "Infinite Jump",
+    Default = false,
+    Callback = function(state)
+        -- Infinite jump logic would go here
+        NexusLib:Notify({
+            Title = "Module",
+            Message = "Infinite Jump " .. (state and "ENABLED" or "DISABLED"),
+            Duration = 3
+        })
+    end
+})
+
+local CombatSection = ModulesTab:CreateSection("Combat & Teleportation")
+
+CombatSection:CreateDropdown({
+    Name = "Teleport Zone",
+    Options = {"Spawn Location", "Cosmic Shop", "Rift Arena", "Boss Room"},
+    Callback = function(selected)
+        local player = game.Players.LocalPlayer
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local positions = {
+                ["Spawn Location"] = CFrame.new(0, 10, 0),
+                ["Cosmic Shop"] = CFrame.new(100, 10, 100),
+                ["Rift Arena"] = CFrame.new(-150, 15, -150),
+                ["Boss Room"] = CFrame.new(200, 20, -200)
+            }
+            player.Character.HumanoidRootPart.CFrame = positions[selected] or CFrame.new(0, 10, 0)
+            NexusLib:Notify({
+                Title = "Teleport",
+                Message = "Teleported to " .. selected,
+                Duration = 4
+            })
+        end
+    end
+})
+
+CombatSection:CreateToggle({
+    Name = "Player ESP Outlines",
+    Default = false,
+    Callback = function(state)
+        for _, plr in ipairs(game.Players:GetPlayers()) do
+            if plr ~= game.Players.LocalPlayer and plr.Character then
+                if state then
+                    if not plr.Character:FindFirstChildOfClass("Highlight") then
+                        local h = Instance.new("Highlight")
+                        h.FillColor = Color3.fromRGB(160, 80, 255)
+                        h.FillTransparency = 0.6
+                        h.OutlineColor = Color3.new(1, 1, 1)
+                        h.OutlineTransparency = 0.2
+                        h.Parent = plr.Character
+                    end
+                else
+                    local h = plr.Character:FindFirstChildOfClass("Highlight")
+                    if h then h:Destroy() end
+                end
+            end
+        end
+    end
+})
+
+CombatSection:CreateButton({
+    Name = "⚔️  Kill All Nearby",
+    Callback = function()
+        NexusLib:Notify({
+            Title = "Combat",
+            Message = "Feature requires game-specific implementation",
+            Duration = 4
+        })
+    end
+})
+
+-- ═══════════════════════════════════════════
+-- 5. SETTINGS TAB
+-- ═══════════════════════════════════════════
+local UISection = SettingsTab:CreateSection("UI Settings")
+
+UISection:CreateTextbox({
+    Name = "Custom Title",
+    Placeholder = "Enter hub name...",
+    Callback = function(text)
+        NexusLib:Notify({
+            Title = "Settings",
+            Message = "Title changed to: " .. text,
+            Duration = 3
+        })
+    end
+})
+
+UISection:CreateSlider({
+    Name = "UI Scale",
+    Min = 50,
+    Max = 150,
+    Default = 100,
+    Increment = 5,
+    Callback = function(value)
+        -- Could adjust UI scale here
+    end
+})
+
+local MiscSection = SettingsTab:CreateSection("Miscellaneous")
+
+MiscSection:CreateToggle({
+    Name = "Anti-AFK",
+    Default = true,
+    Callback = function(state)
+        NexusLib:Notify({
+            Title = "Anti-AFK",
+            Message = state and "You will no longer be kicked for idling" or "Anti-AFK disabled",
+            Duration = 3
+        })
+    end
+})
+
+MiscSection:CreateButton({
+    Name = "🔄  Reset Character",
+    Callback = function()
+        local player = game.Players.LocalPlayer
+        if player.Character and player.Character:FindFirstChildOfClass("Humanoid") then
+            player.Character:FindFirstChildOfClass("Humanoid").Health = 0
+        end
+    end
+})
+
+MiscSection:CreateButton({
+    Name = "❌  Destroy UI",
+    Callback = function()
+        Window:Destroy()
+    end
+})
