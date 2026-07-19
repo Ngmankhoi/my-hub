@@ -831,7 +831,7 @@ function NexusLib:CreateWindow(config)
         task.wait(0.1)
         w:_playIntro()
         task.wait(1)
-        NexusLib:Notify({Title = title .. " Premium", Message = "loaded successfully!", Duration = 5})
+        NexusLib:Notify({Title = title .. " Best Hub", Message = "loaded successfully!", Duration = 5})
     end)
 
     return w
