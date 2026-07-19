@@ -1695,9 +1695,8 @@ function Tab:CreateFeaturedCard(config)
     sl.TextXAlignment = Enum.TextXAlignment.Left
 
     local btn = Instance.new("TextButton", f)
-    btn.Size = UDim2.new(0, 120, 0, 32)
-    btn.AnchorPoint = Vector2.new(0.5, 0)
-    btn.Position = UDim2.new(0.5, -60, 0, 95)
+    btn.Size = UDim2.new(0, 90, 0, 26)
+    btn.Position = UDim2.new(0, 15, 0, 106)
     btn.BackgroundColor3 = Theme.Accent
     btn.BorderSizePixel = 0
     btn.Text = btnText
