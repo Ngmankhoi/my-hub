@@ -1018,16 +1018,56 @@ function Window:CreateTab(name)
     wrapper.Position = UDim2.new(0, 12, 0, 0)
     wrapper.BackgroundTransparency = 1
     wrapper.Parent = sf
+    
+    local leftCol = Instance.new("Frame")
+    leftCol.Name = "LeftCol"
+    leftCol.Size = UDim2.new(0.5, -5, 1, 0)
+    leftCol.Position = UDim2.new(0, 0, 0, 0)
+    leftCol.BackgroundTransparency = 1
+    leftCol.Parent = wrapper
+    local leftL = Instance.new("UIListLayout", leftCol)
+    leftL.Padding = UDim.new(0, 10)
+    leftL.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    local rightCol = Instance.new("Frame")
+    rightCol.Name = "RightCol"
+    rightCol.Size = UDim2.new(0.5, -5, 1, 0)
+    rightCol.Position = UDim2.new(0.5, 5, 0, 0)
+    rightCol.BackgroundTransparency = 1
+    rightCol.Parent = wrapper
+    local rightL = Instance.new("UIListLayout", rightCol)
+    rightL.Padding = UDim.new(0, 10)
+    rightL.SortOrder = Enum.SortOrder.LayoutOrder
 
-    local sfl = Instance.new("UIListLayout", wrapper)
-    sfl.Padding = UDim.new(0, 10)
-    sfl.SortOrder = Enum.SortOrder.LayoutOrder
-
-    sfl:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        sf.CanvasSize = UDim2.new(0, 0, 0, sfl.AbsoluteContentSize.Y + 15)
-        wrapper.Size = UDim2.new(1, -18, 0, sfl.AbsoluteContentSize.Y + 15)
-    end)
+    local function updateCanvas()
+        local maxH = math.max(leftL.AbsoluteContentSize.Y, rightL.AbsoluteContentSize.Y)
+        sf.CanvasSize = UDim2.new(0, 0, 0, maxH + 15)
+        
+        -- Auto adjust width if one column is empty
+        local hasRight = rightL.AbsoluteContentSize.Y > 0
+        local hasLeft = leftL.AbsoluteContentSize.Y > 0
+        
+        if not hasRight then
+            leftCol.Size = UDim2.new(1, 0, 0, maxH + 15)
+            rightCol.Size = UDim2.new(0, 0, 0, 0)
+        elseif not hasLeft then
+            rightCol.Size = UDim2.new(1, 0, 0, maxH + 15)
+            rightCol.Position = UDim2.new(0, 0, 0, 0)
+            leftCol.Size = UDim2.new(0, 0, 0, 0)
+        else
+            leftCol.Size = UDim2.new(0.5, -5, 0, maxH + 15)
+            rightCol.Size = UDim2.new(0.5, -5, 0, maxH + 15)
+            rightCol.Position = UDim2.new(0.5, 5, 0, 0)
+        end
+        
+        wrapper.Size = UDim2.new(1, -18, 0, maxH + 15)
+    end
+    leftL:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas)
+    rightL:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas)
+    
     t._scroll = wrapper
+    t._leftCol = leftCol
+    t._rightCol = rightCol
 
     -- Tab switching
     btn.MouseButton1Click:Connect(function()
@@ -1093,10 +1133,12 @@ end
 -- ═══════════════════════════════════════════════════
 -- SECTION
 -- ═══════════════════════════════════════════════════
-function Tab:CreateSection(name)
+function Tab:CreateSection(name, side)
+    side = side or "Left"
     local s = setmetatable({}, Section)
     s._tab = self
     s._name = name
+    s._side = side
 
     self._orderCounter = self._orderCounter + 1
 
@@ -1105,7 +1147,7 @@ function Tab:CreateSection(name)
     sec.Size = UDim2.new(1, 0, 0, 30)
     sec.BackgroundTransparency = 1
     sec.LayoutOrder = self._orderCounter
-    sec.Parent = self._scroll
+    sec.Parent = side == "Right" and self._rightCol or self._leftCol
 
     local title = Instance.new("TextLabel", sec)
     title.Size = UDim2.new(1, 0, 1, 0)
@@ -1142,7 +1184,7 @@ local function compFrame(section, name)
     f.BackgroundTransparency = Theme.CardTransparency
     f.BorderSizePixel = 0
     f.LayoutOrder = section._tab._orderCounter
-    f.Parent = section._tab._scroll
+    f.Parent = section._side == "Right" and section._tab._rightCol or section._tab._leftCol
     corner(f, 10)
     uistroke(f, Theme.StrokeCard)
     return f
