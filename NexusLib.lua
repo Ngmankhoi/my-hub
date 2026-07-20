@@ -831,7 +831,7 @@ function NexusLib:CreateWindow(config)
         task.wait(0.1)
         w:_playIntro()
         task.wait(1)
-        NexusLib:Notify({Title = title .. " Best Hub", Message = "loaded successfully!", Duration = 5})
+        NexusLib:Notify({Title = title .. " Premium", Message = "loaded successfully!", Duration = 5})
     end)
 
     return w
@@ -1036,8 +1036,6 @@ function Window:CreateTab(name)
     applyBouncy(btn, 1.03, 0.95)
 
     table.insert(self._tabs, t)
-
-    self._activeTab = t
     
     if isFirst then
         self._activeTab = t
