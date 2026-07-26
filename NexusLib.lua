@@ -575,6 +575,27 @@ function NexusLib:CreateWindow(config)
     w._scale = mpScale
     w._mp = mp
 
+    -- Dynamic Scaling for Mobile & Small screens
+    local function updateScale()
+        local camera = workspace.CurrentCamera
+        if camera then
+            local viewportSize = camera.ViewportSize
+            local targetWidth = 780
+            local targetHeight = 500
+            local scaleX = viewportSize.X / targetWidth
+            local scaleY = viewportSize.Y / targetHeight
+            local scale = math.min(scaleX, scaleY, 1)
+            -- Apply slightly smaller scale ceiling on mobile/tablet aspect ratios
+            if viewportSize.X < 800 or viewportSize.Y < 600 then
+                scale = math.min(scaleX, scaleY) * 0.9
+            end
+            mpScale.Scale = math.clamp(scale, 0.5, 1)
+        end
+    end
+    updateScale()
+    local camConn = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
+    table.insert(w._conns, camConn)
+
     -- Sidebar
     local sb = Instance.new("Frame")
     sb.Name = "Sidebar"
