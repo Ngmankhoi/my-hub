@@ -9,28 +9,6 @@ local NexusLib = {}
     ║     Premium Gojo Hollow Purple Theme           ║
     ║     by Nexus Gaming Hub                        ║
     ╚════════════════════════════════════════════════╝
-
-    Usage:
-        local NexusLib = loadstring(game:HttpGet("url"))()
-        -- or in Studio: require(script.Parent.NexusLib)
-
-        local Window = NexusLib:CreateWindow({
-            Title = "My Hub",
-            Subtitle = "v1.0",
-            Keybind = Enum.KeyCode.RightShift
-        })
-
-        local Tab = Window:CreateTab("Modules")
-        local Section = Tab:CreateSection("Character")
-
-        Section:CreateToggle({ Name = "Fly", Default = false, Callback = function(v) end })
-        Section:CreateSlider({ Name = "Speed", Min = 16, Max = 200, Default = 16, Callback = function(v) end })
-        Section:CreateDropdown({ Name = "Zone", Options = {"A","B"}, Callback = function(v) end })
-        Section:CreateButton({ Name = "Execute", Callback = function() end })
-        Section:CreateTextbox({ Name = "Player", Placeholder = "Username...", Callback = function(v) end })
-        Section:CreateLabel("Status: Ready")
-
-        NexusLib:Notify({ Title = "Hello", Message = "Welcome!", Duration = 5 })
 ]]
 
 -- ═══════════════════════════════════════════════════
@@ -468,7 +446,6 @@ function NexusLib:Notify(config)
             Position = UDim2.new(1.3, 0, 0, 0)
         })
         slideOut:Play()
-        -- No rotation during close
 
         slideOut.Completed:Connect(function()
             local collapse = TweenService:Create(notif, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = UDim2.new(1, 0, 0, 0)})
@@ -519,7 +496,7 @@ function NexusLib:CreateWindow(config)
     w._sg = sg
     self._screenGui = sg
 
-    -- Mobile Toggle Button (Hollow Purple orb)
+    -- Mobile Toggle Button
     local mob = Instance.new("TextButton")
     mob.Name = "MobileBtn"
     mob.Size = UDim2.new(0, 50, 0, 50)
@@ -575,7 +552,7 @@ function NexusLib:CreateWindow(config)
     w._scale = mpScale
     w._mp = mp
 
-    -- Dynamic Scaling for Mobile & Small screens
+    -- Dynamic Scaling
     local function updateScale()
         local camera = workspace.CurrentCamera
         if camera then
@@ -585,7 +562,6 @@ function NexusLib:CreateWindow(config)
             local scaleX = viewportSize.X / targetWidth
             local scaleY = viewportSize.Y / targetHeight
             local scale = math.min(scaleX, scaleY, 1)
-            -- Apply slightly smaller scale ceiling on mobile/tablet aspect ratios
             if viewportSize.X < 800 or viewportSize.Y < 600 then
                 scale = math.min(scaleX, scaleY) * 0.9
             end
@@ -796,13 +772,11 @@ function NexusLib:CreateWindow(config)
         mob = UDim2.new(0, 50, 0, 50)
     }
 
-    -- Close (destroy)
     cb.MouseButton1Click:Connect(function()
         if w._tweening then return end
         w._tweening = true
         mp.ClipsDescendants = true
         
-        -- Animation: Shrink and Fade
         local tScale = TweenService:Create(w._scale, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0 })
         TweenService:Create(mp, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { BackgroundTransparency = 1 }):Play()
         
@@ -831,23 +805,19 @@ function NexusLib:CreateWindow(config)
     cb.MouseEnter:Connect(function() TweenService:Create(cb, TI.HIn, {BackgroundColor3 = Theme.CloseHover, TextColor3 = Color3.new(1,1,1)}):Play() end)
     cb.MouseLeave:Connect(function() TweenService:Create(cb, TI.HOut, {BackgroundColor3 = Color3.fromRGB(60,40,100), TextColor3 = Color3.fromRGB(180,160,220)}):Play() end)
 
-    -- Minimize
     minb.MouseButton1Click:Connect(function() w:Minimize() end)
     applyBouncy(minb, 1.1, 0.85, origSizes.minb)
     minb.MouseEnter:Connect(function() TweenService:Create(minb, TI.HIn, {BackgroundColor3 = Theme.MinHover, BackgroundTransparency = 0.2}):Play() end)
     minb.MouseLeave:Connect(function() TweenService:Create(minb, TI.HOut, {BackgroundColor3 = Color3.fromRGB(60,40,100), BackgroundTransparency = 0.5}):Play() end)
 
-    -- Mobile toggle
     mob.MouseButton1Click:Connect(function() w:Toggle() end)
     applyBouncy(mob, 1.1, 0.85, origSizes.mob)
 
-    -- ═══════ KEYBIND ═══════
     table.insert(w._conns, UserInputService.InputBegan:Connect(function(input, gpe)
         if gpe then return end
         if input.KeyCode == keybind then w:Toggle() end
     end))
 
-    -- ═══════ INTRO ═══════
     task.defer(function()
         task.wait(0.1)
         w:_playIntro()
@@ -910,7 +880,6 @@ function Window:_playIntro()
             }):Play()
         end
 
-        -- Cascade nav buttons
         for _, btn in ipairs(nc:GetChildren()) do
             if btn:IsA("TextButton") then
                 local op = btn.Position
@@ -1020,7 +989,7 @@ function Window:CreateTab(name)
     view.Parent = self._ca
     t._view = view
 
-    -- Scroll Frame
+    -- Scroll Frame (FIXED BẢN CHUẨN ROBLOX)
     local sf = Instance.new("ScrollingFrame")
     sf.Name = "Scroll"
     sf.Size = UDim2.new(1, -6, 1, 0)
@@ -1031,26 +1000,29 @@ function Window:CreateTab(name)
     sf.ScrollBarThickness = 3
     sf.ScrollBarImageColor3 = Theme.Accent
     sf.ScrollBarImageTransparency = 0.5
+    sf.Active = true
+    -- Tự động tính toán độ dài, không lo kẹt cuộn trên Mobile
+    sf.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    sf.CanvasSize = UDim2.new(0, 0, 0, 0)
     sf.Parent = view
 
     local wrapper = Instance.new("Frame")
     wrapper.Name = "Wrapper"
-    wrapper.Size = UDim2.new(1, -18, 1, 0)
+    wrapper.Size = UDim2.new(1, -18, 0, 0)
     wrapper.Position = UDim2.new(0, 12, 0, 0)
     wrapper.BackgroundTransparency = 1
+    wrapper.AutomaticSize = Enum.AutomaticSize.Y
     wrapper.Parent = sf
 
     local sfl = Instance.new("UIListLayout", wrapper)
     sfl.Padding = UDim.new(0, 10)
     sfl.SortOrder = Enum.SortOrder.LayoutOrder
 
-    sfl:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        sf.CanvasSize = UDim2.new(0, 0, 0, sfl.AbsoluteContentSize.Y + 15)
-        wrapper.Size = UDim2.new(1, -18, 0, sfl.AbsoluteContentSize.Y + 15)
-    end)
+    local pad = Instance.new("UIPadding", wrapper)
+    pad.PaddingBottom = UDim.new(0, 15)
+    
     t._scroll = wrapper
 
-    -- Tab switching
     btn.MouseButton1Click:Connect(function()
         self:_switchTab(t)
     end)
@@ -1072,18 +1044,15 @@ function Window:_switchTab(targetTab)
     local prev = self._activeTab
     self._activeTab = targetTab
 
-    -- Fade out previous
     TweenService:Create(prev._view, TI.TabOut, {
         Position = UDim2.new(0, -40, 0, 0),
         Size = UDim2.new(0.95, 0, 0.95, 0),
         GroupTransparency = 1
     }):Play()
 
-    -- Move indicator
     local targetY = 104 + (targetTab._index - 1) * 48
     TweenService:Create(self._ind, TI.Smooth, {Position = UDim2.new(0, 10, 0, targetY)}):Play()
 
-    -- Update nav button colors
     for _, t in ipairs(self._tabs) do
         local isTarget = (t == targetTab)
         TweenService:Create(t._navBtn, TI.HOut, {
@@ -1098,7 +1067,6 @@ function Window:_switchTab(targetTab)
     task.wait(0.28)
     prev._view.Visible = false
 
-    -- Fade in target
     targetTab._view.Visible = true
     targetTab._view.Position = UDim2.new(0, 40, 0, 0)
     targetTab._view.Size = UDim2.new(1.05, 0, 1.05, 0)
@@ -1152,7 +1120,6 @@ end
 -- COMPONENTS
 -- ═══════════════════════════════════════════════════
 
--- Helper: Create component container frame
 local function compFrame(section, name)
     section._tab._orderCounter = section._tab._orderCounter + 1
 
@@ -1183,7 +1150,6 @@ local function compLabel(parent, text)
     return l
 end
 
--- ─────────── TOGGLE ───────────
 function Section:CreateToggle(config)
     config = config or {}
     local name = config.Name or "Toggle"
@@ -1240,7 +1206,6 @@ function Section:CreateToggle(config)
     return toggle
 end
 
--- ─────────── SLIDER ───────────
 function Section:CreateSlider(config)
     config = config or {}
     local name = config.Name or "Slider"
@@ -1327,7 +1292,6 @@ function Section:CreateSlider(config)
     return slider
 end
 
--- ─────────── DROPDOWN ───────────
 function Section:CreateDropdown(config)
     config = config or {}
     local name = config.Name or "Dropdown"
@@ -1442,7 +1406,6 @@ function Section:CreateDropdown(config)
     return dropdown
 end
 
--- ─────────── BUTTON ───────────
 function Section:CreateButton(config)
     config = config or {}
     local name = config.Name or "Button"
@@ -1496,7 +1459,6 @@ function Section:CreateButton(config)
     return {_frame = container}
 end
 
--- ─────────── TEXTBOX ───────────
 function Section:CreateTextbox(config)
     config = config or {}
     local name = config.Name or "Input"
@@ -1541,7 +1503,6 @@ function Section:CreateTextbox(config)
     return textbox
 end
 
--- ─────────── LABEL ───────────
 function Section:CreateLabel(text)
     self._tab._orderCounter = self._tab._orderCounter + 1
 
@@ -1568,8 +1529,6 @@ function Section:CreateLabel(text)
 
     return label
 end
-
--- ─────────── DASHBOARD COMPONENTS ───────────
 
 function Tab:CreateHeader(config)
     config = config or {}
@@ -1732,7 +1691,6 @@ function Tab:CreateFeaturedCard(config)
         task.spawn(callback)
     end)
 
-    -- Decorative Diamond
     local dec = Instance.new("Frame", f)
     dec.Size = UDim2.new(0, 60, 0, 60)
     dec.Position = UDim2.new(1, -70, 0.5, 0)
@@ -1838,7 +1796,6 @@ function Tab:CreateActionRow(actions)
     return {_frame = f}
 end
 
--- ─────────── CARD GROUP ───────────
 function Tab:CreateCardGroup(cards)
     cards = cards or {}
     
@@ -1957,9 +1914,6 @@ function Tab:CreateCardGroup(cards)
     return {_frame = f}
 end
 
--- ═══════════════════════════════════════════════════
--- DESTROY ALL
--- ═══════════════════════════════════════════════════
 function NexusLib:DestroyAll()
     if self._screenGui and self._screenGui.Parent then
         self._screenGui:Destroy()
