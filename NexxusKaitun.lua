@@ -1,4 +1,4 @@
--- [[ MASTER CLEAN KAITUN SCRIPT ]] --
+-- [[ MASTER KAITUN OVERLAY ]] --
 local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -31,9 +31,9 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = TargetParent
 
--- Floating Main Card
+-- Floating Main Overlay Card
 local OverlayCard = Instance.new("Frame")
-OverlayCard.Size = UDim2.new(0, 460, 0, 205)
+OverlayCard.Size = UDim2.new(0, 460, 0, 230)
 OverlayCard.Position = UDim2.new(0.5, -230, 0.04, 0)
 OverlayCard.BackgroundColor3 = Color3.fromRGB(14, 15, 22)
 OverlayCard.BorderSizePixel = 0
@@ -76,8 +76,8 @@ HeaderTitle.Parent = Header
 
 -- User Headshot Avatar
 local AvatarFrame = Instance.new("ImageLabel")
-AvatarFrame.Size = UDim2.new(0, 40, 0, 40)
-AvatarFrame.Position = UDim2.new(0, 12, 0, 46)
+AvatarFrame.Size = UDim2.new(0, 46, 0, 46)
+AvatarFrame.Position = UDim2.new(0, 12, 0, 48)
 AvatarFrame.BackgroundColor3 = Color3.fromRGB(25, 28, 40)
 AvatarFrame.Image = "rbxassetid://0"
 AvatarFrame.Parent = OverlayCard
@@ -107,21 +107,34 @@ end
 -- Account Display Name
 local AccountText = LocalPlayer and (LocalPlayer.DisplayName .. " (@" .. LocalPlayer.Name .. ")") or ""
 local UserLabel = Instance.new("TextLabel")
-UserLabel.Size = UDim2.new(0, 320, 0, 40)
-UserLabel.Position = UDim2.new(0, 60, 0, 46)
+UserLabel.Size = UDim2.new(0, 320, 0, 20)
+UserLabel.Position = UDim2.new(0, 68, 0, 48)
 UserLabel.BackgroundTransparency = 1
 UserLabel.Text = "Account: <font color='#00E5FF'>" .. AccountText .. "</font>"
 UserLabel.RichText = true
 UserLabel.TextColor3 = Color3.fromRGB(220, 220, 230)
-UserLabel.TextSize = 13
+UserLabel.TextSize = 12
 UserLabel.Font = Enum.Font.GothamBold
 UserLabel.TextXAlignment = Enum.TextXAlignment.Left
 UserLabel.Parent = OverlayCard
 
+-- Re-added Elapsed Time Counter
+local TimerLabel = Instance.new("TextLabel")
+TimerLabel.Size = UDim2.new(0, 320, 0, 18)
+TimerLabel.Position = UDim2.new(0, 68, 0, 70)
+TimerLabel.BackgroundTransparency = 1
+TimerLabel.Text = "Elapsed Time: <font color='#FFAA00'>00:00:00</font>"
+TimerLabel.RichText = true
+TimerLabel.TextColor3 = Color3.fromRGB(160, 165, 180)
+TimerLabel.TextSize = 12
+TimerLabel.Font = Enum.Font.GothamMedium
+TimerLabel.TextXAlignment = Enum.TextXAlignment.Left
+TimerLabel.Parent = OverlayCard
+
 -- Task Box ("TASK:")
 local TaskBox = Instance.new("Frame")
 TaskBox.Size = UDim2.new(1, -24, 0, 44)
-TaskBox.Position = UDim2.new(0, 12, 0, 94)
+TaskBox.Position = UDim2.new(0, 12, 0, 104)
 TaskBox.BackgroundColor3 = Color3.fromRGB(20, 22, 34)
 TaskBox.Parent = OverlayCard
 
@@ -152,7 +165,7 @@ TaskStatus.Font = Enum.Font.GothamBold
 TaskStatus.TextXAlignment = Enum.TextXAlignment.Left
 TaskStatus.Parent = TaskBox
 
--- Expose SetTask API to Global Environment
+-- Expose SetTask API
 local setTaskFunc = function(text)
     TaskStatus.Text = "▶ " .. tostring(text)
 end
@@ -161,8 +174,8 @@ _G.SetTask = setTaskFunc
 
 -- Stats Row (LEVEL, MONEY, FPS)
 local StatsRow = Instance.new("Frame")
-StatsRow.Size = UDim2.new(1, -24, 0, 48)
-StatsRow.Position = UDim2.new(0, 12, 0, 146)
+StatsRow.Size = UDim2.new(1, -24, 0, 50)
+StatsRow.Position = UDim2.new(0, 12, 0, 158)
 StatsRow.BackgroundTransparency = 1
 StatsRow.Parent = OverlayCard
 
@@ -217,7 +230,7 @@ local function FormatNumber(val)
     return str:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
 end
 
--- FPS Tracker Loop
+-- Real-Time FPS Loop
 local frameCount = 0
 local lastFpsUpdate = os.clock()
 
@@ -236,7 +249,7 @@ end)
 if LocalPlayer then
     task.spawn(function()
         while task.wait(0.5) do
-            -- Level Fetch
+            -- Level
             local lvl = 1
             local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
             local dataFolder = LocalPlayer:FindFirstChild("Data")
@@ -252,7 +265,7 @@ if LocalPlayer then
             end
             StatLabels["Level"].Text = FormatNumber(lvl)
 
-            -- Money Fetch
+            -- Money
             local money = 0
             if leaderstats and leaderstats:FindFirstChild("Money") then
                 money = leaderstats.Money.Value
@@ -271,3 +284,15 @@ if LocalPlayer then
         end
     end)
 end
+
+-- Live Elapsed Time Counter Loop
+local startTime = os.time()
+task.spawn(function()
+    while task.wait(1) do
+        local elapsed = os.time() - startTime
+        local hrs = math.floor(elapsed / 3600)
+        local mins = math.floor((elapsed % 3600) / 60)
+        local secs = elapsed % 60
+        TimerLabel.Text = string.format("Elapsed Time: <font color='#FFAA00'>%02d:%02d:%02d</font>", hrs, mins, secs)
+    end
+end)
