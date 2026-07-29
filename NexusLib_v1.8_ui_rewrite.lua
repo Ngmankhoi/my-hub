@@ -25,6 +25,8 @@ end
 local NexusLib = {
     _windows = {}, _notificationGui = nil, _connections = {}, _debounces = {},
     _notifyQueue = {}, _activeNotifications = 0, _notifyLast = {},
+    _uiLoops = {}, _infoPanels = {},
+    Info = { ["Script Name"] = "Nexus", Version = NEXUS_VERSION, ["Current Module"] = "N/A", ["Current Target"] = "N/A", Status = "Ready", ["Last Action"] = "Loaded", Warning = "None", ["Player"] = player.Name, ["Game"] = game.Name, Runtime = "00:00:00", FPS = "N/A", Ping = "N/A" },
 }
 
 local C = {
@@ -124,6 +126,24 @@ end
 
 function NexusLib:createTween(instance, tweenInfo, props) return createTween(instance, tweenInfo, props) end
 function NexusLib:debounceAction(key, delay, callback) return debounceAction(key, delay, callback) end
+function NexusLib:trackConnection(connection)
+    if connection then table.insert(self._connections, connection) end
+    return connection
+end
+function NexusLib:trackUILoop(loop)
+    if loop then table.insert(self._uiLoops, loop) end
+    return loop
+end
+function NexusLib:stopAllUILoops()
+    for _, loop in ipairs(self._uiLoops) do
+        pcall(function()
+            if typeof(loop) == "RBXScriptConnection" then loop:Disconnect()
+            elseif type(loop) == "table" and loop.Stop then loop:Stop()
+            elseif type(loop) == "function" then loop() end
+        end)
+    end
+    table.clear(self._uiLoops)
+end
 function NexusLib:cleanupConnections()
     for _, connection in ipairs(self._connections) do pcall(function() connection:Disconnect() end) end
     table.clear(self._connections)
@@ -318,6 +338,7 @@ local Tab = {}; Tab.__index = Tab
 local Section = {}; Section.__index = Section
 
 local NotifyColors = { Success = C.success, Error = C.danger, Warning = C.warning, Info = C.info }
+local NotifyIcons = { Success = "✓", Error = "!", Warning = "!", Info = "i" }
 
 local function ensureNotificationGui(self)
     if self._notificationGui and self._notificationGui.Parent then return self._notificationGui.Stack end
@@ -334,10 +355,14 @@ local function showNotification(self, config)
     local card = make("CanvasGroup", { Name = "Notification", BackgroundColor3 = C.shell, BackgroundTransparency = 0.02, Size = UDim2.new(1, 0, 0, 78), GroupTransparency = 1, Position = UDim2.new(0, 20, 0, 0) }, stack)
     corner(card, 14); stroke(card, C.line, 0.15)
     make("Frame", { BorderSizePixel = 0, BackgroundColor3 = accent, Position = UDim2.new(0, 0, 0, 12), Size = UDim2.new(0, 3, 1, -24) }, card)
+    local icon = make("Frame", { BorderSizePixel = 0, BackgroundColor3 = accent, Position = UDim2.fromOffset(16, 12), Size = UDim2.fromOffset(18, 18) }, card)
+    corner(icon, 6)
+    local iconText = label(icon, NotifyIcons[kind:sub(1,1) .. kind:sub(2):lower()] or "i", 11, C.canvas, Enum.Font.GothamBold)
+    iconText.TextXAlignment = Enum.TextXAlignment.Center
     local title = label(card, config.Title or kind, 12, C.ivory, Enum.Font.GothamBold)
-    title.Position = UDim2.fromOffset(17, 10); title.Size = UDim2.new(1, -50, 0, 19)
+    title.Position = UDim2.fromOffset(42, 10); title.Size = UDim2.new(1, -75, 0, 19)
     local message = label(card, config.Message or "", 11, C.secondary)
-    message.Position = UDim2.fromOffset(17, 31); message.Size = UDim2.new(1, -36, 0, 34); message.TextWrapped = true; message.TextYAlignment = Enum.TextYAlignment.Top
+    message.Position = UDim2.fromOffset(42, 31); message.Size = UDim2.new(1, -61, 0, 34); message.TextWrapped = true; message.TextYAlignment = Enum.TextYAlignment.Top
     local close = make("Frame", { Name = "Close", BackgroundTransparency = 1, Active = true, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -8, 0, 7), Size = UDim2.fromOffset(25, 25), ZIndex = 10 }, card)
     local closeText = label(close, "×", 17, C.muted, Enum.Font.GothamBold); closeText.TextXAlignment = Enum.TextXAlignment.Center; closeText.ZIndex = 11
     bindHover(close, hoverLayer(close, C.hover, 8, 10, 0.25))
@@ -1087,6 +1112,88 @@ function Tab:CreateStatRow(stats)
     }
 end
 
+local function normalizeInfoValue(value)
+    if value == nil or value == "" then return "N/A" end
+    return tostring(value)
+end
+
+function NexusLib:_refreshInfoPanels()
+    for index = #self._infoPanels, 1, -1 do
+        local panel = self._infoPanels[index]
+        if not panel._frame or not panel._frame.Parent then table.remove(self._infoPanels, index) else panel:_render() end
+    end
+end
+
+function NexusLib:setInfo(key, value)
+    self.Info[tostring(key)] = normalizeInfoValue(value)
+    self:_refreshInfoPanels()
+end
+
+function NexusLib:updateInfoPanel(values)
+    for key, value in pairs(values or {}) do self.Info[tostring(key)] = normalizeInfoValue(value) end
+    self:_refreshInfoPanels()
+end
+
+local function getPerformanceInfo()
+    local fps, ping = "N/A", "N/A"
+    pcall(function() fps = tostring(math.floor(workspace:GetRealPhysicsFPS() + 0.5)) end)
+    pcall(function() ping = tostring(math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() + 0.5)) .. " ms" end)
+    return fps, ping
+end
+
+function NexusLib:_startInfoUpdater()
+    if self._infoUpdater then return end
+    local elapsed = 0
+    self._infoUpdater = self:trackConnection(RunService.Heartbeat:Connect(function(deltaTime)
+        elapsed = elapsed + deltaTime
+        if elapsed < 1 then return end
+        elapsed = 0
+        self.Info.Runtime = self:FormatPlaytime(os.clock() - scriptStartedAt)
+        self.Info.Player = player.Name
+        self.Info.Game = game.Name ~= "" and game.Name or "N/A"
+        self.Info.FPS, self.Info.Ping = getPerformanceInfo()
+        self:_refreshInfoPanels()
+    end))
+end
+
+function Tab:CreateInformationPanel(config)
+    config = config or {}
+    local keys = config.Fields or { "Script Name", "Version", "Status", "Current Module", "Current Target", "Last Action", "Warning", "Player", "Game", "Runtime", "FPS", "Ping" }
+    local expandedHeight = 42 + #keys * 22
+    local outer, core = controlRow(setmetatable({ _tab = self }, Section), "InformationPanel", expandedHeight)
+    outer.Name = "InformationPanel"
+    outer.ClipsDescendants = true
+    local title = label(core, config.Title or "SCRIPT INFORMATION", 10, C.brass, Enum.Font.GothamBold)
+    title.Position = UDim2.fromOffset(14, 8); title.Size = UDim2.new(1, -56, 0, 18); title.ZIndex = 3
+    local collapse = make("Frame", { Name = "Collapse", BackgroundColor3 = C.shell, BorderSizePixel = 0, Active = true, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 8), Size = UDim2.fromOffset(24, 24), ZIndex = 5 }, core)
+    corner(collapse, 7)
+    local collapseText = label(collapse, "−", 14, C.brass, Enum.Font.GothamBold); collapseText.TextXAlignment = Enum.TextXAlignment.Center; collapseText.ZIndex = 6
+    local rows = make("Frame", { BackgroundTransparency = 1, Position = UDim2.fromOffset(14, 32), Size = UDim2.new(1, -28, 1, -38), ZIndex = 3 }, core)
+    make("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }, rows)
+    local values = {}
+    for order, key in ipairs(keys) do
+        local row = make("Frame", { LayoutOrder = order, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 20) }, rows)
+        local keyLabel = label(row, string.upper(key), 9, C.muted, Enum.Font.GothamBold); keyLabel.Size = UDim2.new(0.42, 0, 1, 0)
+        local valueLabel = label(row, "N/A", 10, C.secondary, Enum.Font.GothamMedium); valueLabel.Position = UDim2.new(0.42, 0, 0, 0); valueLabel.Size = UDim2.new(0.58, 0, 1, 0); valueLabel.TextXAlignment = Enum.TextXAlignment.Right; valueLabel.TextTruncate = Enum.TextTruncate.AtEnd
+        values[key] = valueLabel
+    end
+    local panel = { _frame = outer, _core = core, _rows = values, _expanded = true, _expandedHeight = expandedHeight }
+    function panel:_render()
+        for key, valueLabel in pairs(self._rows) do valueLabel.Text = tostring(NexusLib.Info[key] or "N/A") end
+    end
+    function panel:Set(key, value) NexusLib:setInfo(key, value) end
+    function panel:Get(key) return NexusLib.Info[key] end
+    function panel:Toggle()
+        self._expanded = not self._expanded
+        collapseText.Text = self._expanded and "−" or "+"
+        tween(outer, Motion.base, { Size = UDim2.new(1, 0, 0, self._expanded and self._expandedHeight or 42) })
+    end
+    panel:_render(); table.insert(NexusLib._infoPanels, panel); NexusLib:_startInfoUpdater()
+    bindActivation(collapse, function() panel:Toggle() end)
+    bindHover(collapse, hoverLayer(collapse, C.hover, 7, 6, 0.35))
+    return panel
+end
+
 function Tab:CreateFeaturedCard(config)
     config = config or {}
     local outer = make("Frame", {
@@ -1189,11 +1296,30 @@ function Section:CreateSlider(config)
     return { _frame = outer, Get = function() return current end }
 end
 
+-- Lower-case component aliases accept the requested mobile-friendly options API.
+local function normalizeOptions(options)
+    options = options or {}
+    options.Name = options.Name or options.name
+    options.Default = options.Default ~= nil and options.Default or options.default
+    options.Callback = options.Callback or options.callback
+    options.Options = options.Options or options.options
+    return options
+end
+function Section:createButton(options) return self:CreateButton(normalizeOptions(options)) end
+function Section:createToggle(options) return self:CreateToggle(normalizeOptions(options)) end
+function Section:createTextBox(options) return self:CreateTextbox(normalizeOptions(options)) end
+function Section:createDropdown(options) return self:CreateDropdown(normalizeOptions(options)) end
+function Tab:createSection(title) return self:CreateSection(title) end
+function Section:createLabel(text) return self:CreateLabel(text) end
+
 function NexusLib:DestroyAll()
     for _, window in ipairs(self._windows) do pcall(function() window:Destroy() end) end
     table.clear(self._windows)
+    self:stopAllUILoops()
     self:cleanupConnections()
     self:clearNotifications()
+    table.clear(self._infoPanels)
+    self._infoUpdater = nil
     for _, child in ipairs(guiParent:GetChildren()) do
         if child.Name == "NexusPanel" or child:GetAttribute("NexusPanel") == true then child:Destroy() end
     end
