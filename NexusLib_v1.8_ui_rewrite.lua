@@ -430,13 +430,19 @@ function NexusLib:CreateWindow(config)
     }, viewport)
     corner(shadow, 22)
 
-    local shell = make("CanvasGroup", {
-        Name = "Panel", BackgroundColor3 = C.shell, BorderSizePixel = 0, GroupTransparency = 0,
+    local shell = make("Frame", {
+        Name = "Panel", BackgroundColor3 = C.shell, BorderSizePixel = 0,
         AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 18),
         Size = UDim2.fromOffset(760, 500),
         ClipsDescendants = true,
     }, viewport)
     corner(shell, 20)
+    local fadeOverlay = make("Frame", {
+        Name = "FadeOverlay", BackgroundColor3 = C.canvas, BorderSizePixel = 0,
+        BackgroundTransparency = 0, Size = UDim2.fromScale(1, 1), ZIndex = 50,
+        Active = false, Selectable = false,
+    }, shell)
+    corner(fadeOverlay, 20)
     local panelScale = make("UIScale", { Scale = 0.975 }, shell)
     make("UIGradient", {
         Color = ColorSequence.new(C.shell, C.canvas), Rotation = 90,
@@ -540,7 +546,7 @@ function NexusLib:CreateWindow(config)
     bindHover(launcher, launcherHover)
 
     local window = setmetatable({
-        _gui = sg, _shell = shell, _shadow = shadow, _scale = scale, _panelScale = panelScale,
+        _gui = sg, _shell = shell, _shadow = shadow, _fadeOverlay = fadeOverlay, _scale = scale, _panelScale = panelScale,
         _nav = nav, _content = content, _pageTitle = pageTitle, _context = context,
         _tabs = {}, _active = nil, _hoveredTab = nil, _open = true, _connections = {},
         _transitionId = 0, _pageTweens = {},
@@ -652,6 +658,7 @@ function NexusLib:CreateWindow(config)
     launcher.Visible = false
     tween(shell, Motion.enter, { Position = UDim2.new(0.5, 0, 0.5, 0) })
     tween(panelScale, Motion.enter, { Scale = 1 })
+    tween(fadeOverlay, Motion.enter, { BackgroundTransparency = 1 })
     tween(shadow, Motion.enter, { BackgroundTransparency = 1, Position = UDim2.new(0.5, 0, 0.5, 5) })
     return window
 end
@@ -766,7 +773,8 @@ function Window:Minimize()
     resetHoverLayers(self._shell)
     self._visibilityId = self._visibilityId + 1
     local id, launcher = self._visibilityId, self._gui:FindFirstChild("NexusLauncher")
-    tween(self._shell, Motion.exit, { Position = self._openPosition + UDim2.fromOffset(0, 12), GroupTransparency = 1 })
+    tween(self._shell, Motion.exit, { Position = self._openPosition + UDim2.fromOffset(0, 12) })
+    if self._fadeOverlay then tween(self._fadeOverlay, Motion.exit, { BackgroundTransparency = 0 }) end
     tween(self._panelScale, Motion.exit, { Scale = 0.975 })
     tween(self._shadow, Motion.exit, { BackgroundTransparency = 1 })
     task.delay(0.22, function()
@@ -783,10 +791,12 @@ function Window:Open()
     self._visibilityId = self._visibilityId + 1
     local id, launcher = self._visibilityId, self._gui:FindFirstChild("NexusLauncher")
     if launcher then resetHoverLayers(launcher); launcher.Visible = false end
-    self._shell.Visible = true; self._shell.GroupTransparency = 1
+    self._shell.Visible = true
+    if self._fadeOverlay then self._fadeOverlay.BackgroundTransparency = 0 end
     self._shell.Position = self._openPosition + UDim2.fromOffset(0, 12)
     self._panelScale.Scale = 0.975
-    tween(self._shell, Motion.enter, { Position = self._openPosition, GroupTransparency = 0 })
+    tween(self._shell, Motion.enter, { Position = self._openPosition })
+    if self._fadeOverlay then tween(self._fadeOverlay, Motion.enter, { BackgroundTransparency = 1 }) end
     tween(self._panelScale, Motion.enter, { Scale = 1 })
     tween(self._shadow, Motion.enter, { BackgroundTransparency = 1 })
     task.delay(0.46, function() if self._visibilityId == id then self._transitioning = false end end)
