@@ -1,5 +1,10 @@
--- Nexus Panel UI
+-- Nexus Panel UI v1.8
+-- Update log: NEW UI
 -- Rebuilt as a restrained, responsive Roblox instrument panel.
+
+local NEXUS_VERSION = "1.8"
+local NEXUS_UPDATE_LOG = "NEW UI"
+local scriptStartedAt = os.clock()
 
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -164,6 +169,8 @@ end
 
 local function addPressScale(button)
     local scale = make("UIScale", { Scale = 1 }, button)
+    -- Keep the button's outer geometry fixed. Scaling rounded GuiObjects can
+    -- invalidate Roblox's corner cache and make the background appear smaller.
     return scale
 end
 
@@ -179,6 +186,8 @@ local function hoverLayer(parent, color, radius, zIndex, transparency)
 end
 
 local function bindHover(hitTarget, layer, onEnter, onLeave)
+    -- Keep hover state on a dedicated child. Mutating a rounded input object's
+    -- own background can corrupt Roblox's corner/render cache for that object.
     hitTarget.MouseEnter:Connect(function()
         layer.Visible = true
         if onEnter then onEnter() end
@@ -337,6 +346,9 @@ function NexusLib:CreateWindow(config)
         Name = "Rail", BorderSizePixel = 0, BackgroundColor3 = C.rail,
         Size = UDim2.new(0, 184, 1, 0),
     }, shell)
+    -- Roblox does not clip descendants to a parent's UICorner. Round the rail
+    -- itself, then square only its inner edge so the panel's two left corners
+    -- remain visible while the content boundary stays perfectly vertical.
     corner(rail, 20)
     make("Frame", {
         Name = "InnerEdgeFill", BorderSizePixel = 0, BackgroundColor3 = C.rail,
@@ -357,49 +369,15 @@ function NexusLib:CreateWindow(config)
     corner(mark, 9); stroke(mark, C.brassSoft, 0.08)
 
     local brand = label(rail, player.DisplayName, 12, C.ivory, Enum.Font.GothamBold)
-    brand.Position = UDim2.fromOffset(58, 16); brand.Size = UDim2.new(1, -70, 0, 18)
+    brand.Position = UDim2.fromOffset(58, 18); brand.Size = UDim2.new(1, -70, 0, 20)
     brand.TextTruncate = Enum.TextTruncate.AtEnd
     local subtitle = label(rail, "@" .. player.Name, 9, C.muted, Enum.Font.GothamMedium)
-    subtitle.Position = UDim2.fromOffset(58, 32); subtitle.Size = UDim2.new(1, -70, 0, 12)
+    subtitle.Position = UDim2.fromOffset(58, 38); subtitle.Size = UDim2.new(1, -70, 0, 14)
     subtitle.TextTruncate = Enum.TextTruncate.AtEnd
-
-    -- === PLAYER STATS DISPLAY ===
-    local statsContainer = make("Frame", {
-        Name = "PlayerStats", BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(20, 56), Size = UDim2.new(1, -40, 0, 60),
-    }, rail)
-    make("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, statsContainer)
-
-    local function createMiniStat(name, statKey)
-        local row = make("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 14) }, statsContainer)
-        local textLabel = label(row, name .. ": 0", 10, C.secondary)
-        textLabel.Position = UDim2.fromOffset(0, 0); textLabel.Size = UDim2.new(1, 0, 1, 0)
-        
-        task.spawn(function()
-            local leaderstats = player:WaitForChild("leaderstats", 5)
-            if leaderstats then
-                local stat = leaderstats:WaitForChild(statKey, 5)
-                if stat then
-                    local function updateStat()
-                        textLabel.Text = name .. ": " .. tostring(stat.Value)
-                    end
-                    stat:GetPropertyChangedSignal("Value"):Connect(updateStat)
-                    updateStat()
-                end
-            end
-        end)
-    end
-
-    -- Add the level, money, and time to the rail (Removed icons)
-    createMiniStat("Level", "Level")
-    createMiniStat("Money", "Money")
-    createMiniStat("Time", "Time")
-    -- ============================
 
     local nav = make("Frame", {
         Name = "Navigation", BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(14, 124),
-        Size = UDim2.new(1, -28, 1, -164), 
+        Position = UDim2.fromOffset(14, 86), Size = UDim2.new(1, -28, 1, -130),
         ClipsDescendants = true, ZIndex = 2,
     }, rail)
     make("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, nav)
@@ -657,6 +635,9 @@ function Window:_select(tab, instant)
         self._pageTweens[page] = nil
     end
 
+    -- Normalize every page before revealing the next one. Roblox applies
+    -- visibility before tween completion, so overlapping exit/entry tweens can
+    -- render both scrolling pages for one frame during rapid switching.
     for _, item in ipairs(self._tabs) do
         if item ~= tab then
             item._page.Visible = false
@@ -900,6 +881,79 @@ function Section:CreateDropdown(config)
     return { _frame = outer, Get = function() return selected end, Set = function(_, v) selected = v; value.Text = tostring(v) end }
 end
 
+-- Multiple highlighted selections; there is deliberately no toggle/switch control.
+function Section:CreateMultiChoice(config)
+    config = config or {}
+    local options = config.Options or {}
+    local selected = {}
+    for _, option in ipairs(config.Default or {}) do selected[option] = true end
+
+    local outer, core = controlRow(self, config.Name or "Skills", 48 + math.max(0, #options - 1) * 38)
+    local title = label(core, config.Name or "Skills", 11, C.secondary, Enum.Font.GothamBold)
+    title.Position = UDim2.fromOffset(16, 8); title.Size = UDim2.new(1, -32, 0, 18); title.ZIndex = 3
+    local list = make("Frame", {
+        BackgroundTransparency = 1, Position = UDim2.fromOffset(12, 30),
+        Size = UDim2.new(1, -24, 1, -36), ZIndex = 3,
+    }, core)
+    make("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, list)
+
+    local rows = {}
+    local function values()
+        local result = {}
+        for _, option in ipairs(options) do if selected[option] then table.insert(result, option) end end
+        return result
+    end
+    local function paint(option)
+        local row = rows[option]
+        if not row then return end
+        local active = selected[option] == true
+        row.core.BackgroundColor3 = active and C.brassSoft or C.shell
+        row.text.TextColor3 = active and C.brass or C.secondary
+        row.mark.Visible = active
+    end
+    local function set(option, active, emit)
+        selected[option] = active == true
+        paint(option)
+        if emit and config.Callback then task.spawn(config.Callback, values()) end
+    end
+
+    for index, option in ipairs(options) do
+        local row = make("Frame", {
+            Name = "Skill_" .. tostring(index), LayoutOrder = index, BackgroundColor3 = C.lineSoft,
+            BorderSizePixel = 0, Size = UDim2.new(1, 0, 0, 34), ZIndex = 3,
+        }, list)
+        corner(row, 9)
+        local rowCore = make("Frame", {
+            BackgroundColor3 = C.shell, BorderSizePixel = 0,
+            Position = UDim2.fromOffset(1, 1), Size = UDim2.new(1, -2, 1, -2), ZIndex = 4,
+        }, row)
+        corner(rowCore, 8)
+        local rowText = label(rowCore, tostring(option), 11, C.secondary, Enum.Font.GothamMedium)
+        rowText.Position = UDim2.fromOffset(12, 0); rowText.Size = UDim2.new(1, -40, 1, 0); rowText.ZIndex = 5
+        local mark = label(rowCore, "✓", 13, C.brass, Enum.Font.GothamBold)
+        mark.TextXAlignment = Enum.TextXAlignment.Center
+        mark.AnchorPoint = Vector2.new(1, 0.5); mark.Position = UDim2.new(1, -10, 0.5, 0); mark.Size = UDim2.fromOffset(18, 18); mark.ZIndex = 5
+        local hit = make("Frame", { Name = "HitArea", BackgroundTransparency = 1, Active = true, Size = UDim2.fromScale(1, 1), ZIndex = 10 }, rowCore)
+        rows[option] = { core = rowCore, text = rowText, mark = mark }
+        paint(option)
+        bindHover(hit, hoverLayer(rowCore, C.hover, 8, 6, 0.65))
+        bindActivation(hit, function() set(option, not selected[option], true) end)
+    end
+
+    return {
+        _frame = outer,
+        Get = values,
+        Set = function(_, option, active) set(option, active, true) end,
+    }
+end
+
+-- BMAD naming adapter: selections use the same multi-highlight control and emit the selected list.
+function Section:CreateBMADSkillSelector(config)
+    config = config or {}
+    config.Name = config.Name or "BMAD Skills"
+    return self:CreateMultiChoice(config)
+end
+
 function Section:CreateTextbox(config)
     config = config or {}
     local outer, core = controlRow(self, config.Name or "Textbox", 52)
@@ -930,6 +984,7 @@ function Tab:CreateStatRow(stats)
         SortOrder = Enum.SortOrder.LayoutOrder,
     }, frame)
     local count = math.max(#stats, 1)
+    local statValues = {}
     for i, stat in ipairs(stats) do
         local outer = make("Frame", {
             Name = "Stat_" .. i, LayoutOrder = i, BackgroundColor3 = C.lineSoft,
@@ -947,8 +1002,16 @@ function Tab:CreateStatRow(stats)
         value.Position = UDim2.fromOffset(14, 25); value.Size = UDim2.new(1, -28, 0, 28)
         local title = label(core, string.upper(stat.Title or "STAT"), 9, C.muted, Enum.Font.GothamBold)
         title.Position = UDim2.fromOffset(14, 57); title.Size = UDim2.new(1, -28, 0, 18)
+        statValues[stat.Key or stat.Title or tostring(i)] = value
     end
-    return { _frame = frame }
+    return {
+        _frame = frame,
+        Values = statValues,
+        Set = function(_, key, nextValue)
+            local target = statValues[key]
+            if target then target.Text = tostring(nextValue) end
+        end,
+    }
 end
 
 function Tab:CreateFeaturedCard(config)
@@ -1060,6 +1123,47 @@ function NexusLib:DestroyAll()
         if child.Name == "NexusPanel" or child:GetAttribute("NexusPanel") == true then child:Destroy() end
     end
 end
+
+
+
+-- v1.8 session data bindings. Values are read-only observations from the local player.
+local function getNumericValue(parent, candidates)
+    if not parent then return nil end
+    for _, name in ipairs(candidates) do
+        local item = parent:FindFirstChild(name)
+        if item and (item:IsA("IntValue") or item:IsA("NumberValue")) then return item.Value end
+    end
+    return nil
+end
+
+function NexusLib:GetSessionData()
+    local leaderstats = player:FindFirstChild("leaderstats")
+    local money = getNumericValue(leaderstats, { "Money", "Cash", "Coins", "Gold" })
+        or player:GetAttribute("Money") or player:GetAttribute("Cash") or player:GetAttribute("Coins")
+    local level = getNumericValue(leaderstats, { "Level", "Lvl", "Rank" })
+        or player:GetAttribute("Level") or player:GetAttribute("Lvl") or player:GetAttribute("Rank")
+    return { Money = money or 0, Level = level or 0, PlaytimeSeconds = math.max(0, math.floor(os.clock() - scriptStartedAt)) }
+end
+
+function NexusLib:FormatPlaytime(seconds)
+    seconds = math.max(0, math.floor(tonumber(seconds) or 0))
+    return string.format("%02d:%02d:%02d", math.floor(seconds / 3600), math.floor(seconds / 60) % 60, seconds % 60)
+end
+
+function NexusLib:BindSessionStats(statRow, config)
+    config = config or {}
+    local keys = { Money = config.MoneyKey or "Money", Level = config.LevelKey or "Level", Playtime = config.PlaytimeKey or "Playtime" }
+    local connection = RunService.Heartbeat:Connect(function()
+        local data = self:GetSessionData()
+        statRow:Set(keys.Money, data.Money)
+        statRow:Set(keys.Level, data.Level)
+        statRow:Set(keys.Playtime, self:FormatPlaytime(data.PlaytimeSeconds))
+    end)
+    return { Disconnect = function() connection:Disconnect() end }
+end
+
+NexusLib.Version = NEXUS_VERSION
+NexusLib.UpdateLog = NEXUS_UPDATE_LOG
 
 local env = (getgenv and getgenv()) or _G
 env.NexusLib = NexusLib
