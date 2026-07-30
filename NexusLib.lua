@@ -340,7 +340,7 @@ function NexusLib:Notify(config)
         AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 8),
         Size = UDim2.fromOffset(24, 24), ZIndex = 10,
     }, card)
-    local closeGlyph = label(close, "x", 18, C.muted, Enum.Font.GothamMedium)
+    local closeGlyph = label(close, "×", 18, C.muted, Enum.Font.GothamMedium)
     closeGlyph.TextXAlignment = Enum.TextXAlignment.Center; closeGlyph.ZIndex = 11
     bindHover(close, hoverLayer(close, C.hover, 8, 10, 0.25))
 
@@ -435,7 +435,7 @@ function NexusLib:CreateWindow(config)
     }, rail)
     make("UIListLayout", { Padding = UDim.new(0, 5), SortOrder = Enum.SortOrder.LayoutOrder }, nav)
 
-    local hint = label(rail, "RIGHT ALT / TOGGLE", 9, C.muted, Enum.Font.GothamMedium)
+    local hint = label(rail, "RIGHT ALT  ·  TOGGLE", 9, C.muted, Enum.Font.GothamMedium)
     hint.Position = UDim2.new(0, 20, 1, -32); hint.Size = UDim2.new(1, -40, 0, 16)
 
     local top = make("Frame", {
@@ -468,8 +468,8 @@ function NexusLib:CreateWindow(config)
         return button
     end
 
-    local minimize = createTopButton("MinimizeButton", "-", 14, C.hover, -52)
-    local close = createTopButton("CloseButton", "x", 16, C.danger, -12)
+    local minimize = createTopButton("MinimizeButton", "—", 14, C.hover, -52)
+    local close = createTopButton("CloseButton", "×", 16, C.danger, -12)
 
     local content = make("Frame", {
         Name = "ContentViewport", BackgroundTransparency = 1,
@@ -1076,7 +1076,7 @@ function Tab:CreateStatRow(stats)
         corner(core, 13)
         local accent = make("Frame", { BorderSizePixel = 0, BackgroundColor3 = stat.Color or C.brass, Position = UDim2.fromOffset(14, 15), Size = UDim2.fromOffset(18, 2) }, core)
         corner(accent, 1)
-        local value = label(core, tostring(stat.Value or "-"), 18, C.ivory, Enum.Font.GothamBold)
+        local value = label(core, tostring(stat.Value or "—"), 18, C.ivory, Enum.Font.GothamBold)
         value.Position = UDim2.fromOffset(14, 25); value.Size = UDim2.new(1, -28, 0, 28)
         local title = label(core, string.upper(stat.Title or "STAT"), 9, C.muted, Enum.Font.GothamBold)
         title.Position = UDim2.fromOffset(14, 57); title.Size = UDim2.new(1, -28, 0, 18)
