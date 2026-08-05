@@ -172,6 +172,15 @@ local function navIcon(parent, name)
     elseif name == "Teleport" then
         outline(5, 5, 8, 8, 1, 45)
         local dot = line(8, 8, 2, 2); corner(dot, 1)
+    elseif name == "Shop" then
+        local body = line(2, 7, 14, 8)
+        corner(body, 1)
+        local handle = line(5, 4, 8, 2)
+        corner(handle, 1)
+        local wheelL = line(3, 15, 3, 3)
+        corner(wheelL, 2)
+        local wheelR = line(12, 15, 3, 3)
+        corner(wheelR, 2)
     else
         outline(3, 5, 12, 8, 2)
         line(6, 8, 6, 1); line(6, 11, 4, 1)
@@ -494,6 +503,8 @@ function NexusLib:CreateWindow(config)
         _transitionId = 0, _pageTweens = {},
         _visibilityId = 0, _openPosition = UDim2.new(0.5, 0, 0.5, 0),
         _keybind = config.Keybind or Enum.KeyCode.RightAlt,
+        _launcher = launcher,
+        _launcherSize = 46,
     }, Window)
     table.insert(self._windows, window)
 
@@ -501,7 +512,12 @@ function NexusLib:CreateWindow(config)
         local camera = workspace.CurrentCamera
         if not camera then return end
         local v = camera.ViewportSize
-        scale.Scale = math.min(1, (v.X - 32) / 760, (v.Y - 32) / 500)
+        scale.Scale = math.min(1, v.X / 760, v.Y / 500)
+        scale.Scale = math.max(0.55, scale.Scale)
+        if launcher then
+            local newSize = window._launcherSize * scale.Scale
+            launcher.Size = UDim2.fromOffset(newSize, newSize)
+        end
     end
     local cameraConnection = nil
     local function bindCamera()
@@ -718,6 +734,10 @@ function Window:Minimize()
     self._visibilityId = self._visibilityId + 1
     local visibilityId = self._visibilityId
     local launcher = self._gui:FindFirstChild("NexusLauncher")
+    if launcher then
+        local newSize = self._launcherSize * self._scale.Scale
+        launcher.Size = UDim2.fromOffset(newSize, newSize)
+    end
     tween(self._shell, Motion.exit, { Position = self._openPosition + UDim2.fromOffset(0, 12), GroupTransparency = 1 })
     tween(self._panelScale, Motion.exit, { Scale = 0.975 })
     tween(self._shadow, Motion.exit, { BackgroundTransparency = 1 })
@@ -740,7 +760,12 @@ function Window:Open()
     self._open = true
     self._visibilityId = self._visibilityId + 1
     local launcher = self._gui:FindFirstChild("NexusLauncher")
-    if launcher then resetHoverLayers(launcher); launcher.Visible = false end
+    if launcher then
+        resetHoverLayers(launcher)
+        launcher.Visible = false
+        local newSize = self._launcherSize * self._scale.Scale
+        launcher.Size = UDim2.fromOffset(newSize, newSize)
+    end
     self._shell.Visible = true
     self._shell.GroupTransparency = 1
     tween(self._shell, Motion.enter, { Position = self._openPosition, GroupTransparency = 0 })
@@ -955,13 +980,17 @@ function Section:CreateMultiDropdown(config)
     local outer, core = controlRow(self, config.Name or "Multi-select", 48)
     outer.ClipsDescendants = true
     local title = label(core, config.Name or "Select", 11, C.secondary, Enum.Font.GothamMedium)
-    title.Position = UDim2.fromOffset(16, 0); title.Size = UDim2.new(0.52, -16, 0, 48); title.ZIndex = 3
+    title.Position = UDim2.fromOffset(16, 0); title.Size = UDim2.new(0.45, -16, 0, 48); title.ZIndex = 3
     local value = label(core, "None", 11, C.ivory, Enum.Font.GothamMedium)
-    value.Position = UDim2.new(0.52, 0, 0, 0); value.Size = UDim2.new(0.48, -42, 0, 48); value.ZIndex = 3
+    value.TextWrapped = false
+    value.TextTruncate = Enum.TextTruncate.AtEnd
+    value.Position = UDim2.new(0.45, 0, 0, 0)
+    value.Size = UDim2.new(0.55, -48, 0, 48)
     value.TextXAlignment = Enum.TextXAlignment.Right
+    value.ZIndex = 3
     local chevron = make("Frame", {
         Name = "Chevron", BackgroundTransparency = 1,
-        AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -15, 0, 24),
+        AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0, 24),
         Size = UDim2.fromOffset(14, 14), ZIndex = 6,
     }, core)
     make("Frame", { BorderSizePixel = 0, BackgroundColor3 = C.brass, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(5, 7), Size = UDim2.fromOffset(7, 2), Rotation = 45, ZIndex = 6 }, chevron)
@@ -974,7 +1003,14 @@ function Section:CreateMultiDropdown(config)
     local choiceRefreshers = {}
     local function refreshValue()
         local values = selectedValues()
-        value.Text = #values == 0 and "None" or table.concat(values, ", ")
+        if #values == 0 then
+            value.Text = "None"
+        elseif #values <= 2 then
+            value.Text = table.concat(values, ", ")
+        else
+            local firstTwo = {values[1], values[2]}
+            value.Text = table.concat(firstTwo, ", ") .. " + " .. (#values - 2) .. " more"
+        end
     end
     local function setOpen(nextOpen)
         open = nextOpen
