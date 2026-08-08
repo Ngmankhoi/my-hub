@@ -77,12 +77,14 @@ local function padding(parent, left, right, top, bottom)
 end
 
 local function tween(object, info, properties)
+    if not object then return end
     local animation = TweenService:Create(object, info, properties)
     animation:Play()
     return animation
 end
 
 local function animate(object, channel, info, properties)
+    if not object then return end
     local channels = interactionTweens[object]
     if not channels then
         channels = {}
@@ -196,8 +198,6 @@ end
 
 local function addPressScale(button)
     local scale = make("UIScale", { Scale = 1 }, button)
-    -- Keep the button's outer geometry fixed. Scaling rounded GuiObjects can
-    -- invalidate Roblox's corner cache and make the background appear smaller.
     return scale
 end
 
@@ -230,8 +230,6 @@ local function setHoverVisible(layer, visible)
 end
 
 local function bindHover(hitTarget, layer, onEnter, onLeave)
-    -- Keep hover state on a dedicated child. Mutating a rounded input object's
-    -- own background can corrupt Roblox's corner/render cache for that object.
     hitTarget.MouseEnter:Connect(function()
         setHoverVisible(layer, true)
         if onEnter then onEnter() end
@@ -321,8 +319,6 @@ function NexusLib:Notify(config)
     end
 
     local stack = self._notificationGui.Stack
-    -- UIListLayout owns its direct children's Position. The holder keeps layout
-    -- stable while its card can glide in and out without snapping.
     local holder = make("Frame", {
         Name = "NotificationItem", BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 0, 82), ClipsDescendants = false,
@@ -399,8 +395,6 @@ function NexusLib:CreateWindow(config)
     }, viewport)
     corner(shell, 20)
     local panelScale = make("UIScale", { Scale = 0.975 }, shell)
-    -- UIGradient colors multiply every descendant of a CanvasGroup. Near-black
-    -- colors here darken text and controls twice, so use a subtle white tint.
     make("UIGradient", {
         Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(224, 224, 224)), Rotation = 90,
     }, shell)
@@ -408,9 +402,6 @@ function NexusLib:CreateWindow(config)
         Name = "Rail", BorderSizePixel = 0, BackgroundColor3 = C.rail,
         Size = UDim2.new(0, 184, 1, 0),
     }, shell)
-    -- Roblox does not clip descendants to a parent's UICorner. Round the rail
-    -- itself, then square only its inner edge so the panel's two left corners
-    -- remain visible while the content boundary stays perfectly vertical.
     corner(rail, 20)
     make("Frame", {
         Name = "InnerEdgeFill", BorderSizePixel = 0, BackgroundColor3 = C.rail,
@@ -480,11 +471,39 @@ function NexusLib:CreateWindow(config)
     local minimize = createTopButton("MinimizeButton", "-", 14, C.hover, -52)
     local close = createTopButton("CloseButton", "x", 16, C.danger, -12)
 
+    -- Content area: leave room for bottom bar
+    local bottomBarHeight = 22
     local content = make("Frame", {
         Name = "ContentViewport", BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(184, 72), Size = UDim2.new(1, -184, 1, -72),
+        Position = UDim2.fromOffset(184, 72), Size = UDim2.new(1, -184, 1, -(72 + bottomBarHeight)),
         ClipsDescendants = true,
     }, shell)
+
+    -- Bottom bar for dragging
+    local bottomBar = make("Frame", {
+        Name = "BottomBar", BackgroundColor3 = C.rail, BorderSizePixel = 0,
+        Position = UDim2.new(0, 184, 1, -bottomBarHeight),
+        Size = UDim2.new(1, -184, 0, bottomBarHeight),
+        ZIndex = 1,
+    }, shell)
+    corner(bottomBar, 20)
+    make("Frame", {
+        BorderSizePixel = 0, BackgroundColor3 = C.lineSoft,
+        Position = UDim2.new(0, 0, 0, 0), Size = UDim2.new(1, 0, 0, 1),
+    }, bottomBar)
+    -- grip indicator
+    local grip = make("Frame", {
+        BackgroundTransparency = 1,
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.fromOffset(24, 8),
+    }, bottomBar)
+    for i = 0, 2 do
+        make("Frame", {
+            BorderSizePixel = 0, BackgroundColor3 = C.muted,
+            Position = UDim2.new(0, 0, 0, i*3),
+            Size = UDim2.new(1, 0, 0, 1.5),
+        }, grip)
+    end
 
     local launcher = make("Frame", {
         Name = "NexusLauncher", BackgroundTransparency = 1, BorderSizePixel = 0,
@@ -507,6 +526,49 @@ function NexusLib:CreateWindow(config)
         _launcherSize = 46,
     }, Window)
     table.insert(self._windows, window)
+
+    -- ===== DRAG LOGIC (shared between top bar and bottom bar) =====
+    local dragging = false
+    local dragStart = nil
+    local startPosition = nil
+
+    -- Top bar drag
+    table.insert(window._connections, top.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPosition = shell.Position
+        end
+    end))
+
+    -- Bottom bar drag
+    table.insert(window._connections, bottomBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPosition = shell.Position
+        end
+    end))
+
+    -- Global drag update
+    table.insert(window._connections, UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            shell.Position = startPosition + UDim2.fromOffset(delta.X / scale.Scale, delta.Y / scale.Scale)
+            shadow.Position = shell.Position + UDim2.fromOffset(0, 5)
+        end
+    end))
+
+    -- Global drag end
+    table.insert(window._connections, UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            if dragging then
+                window._openPosition = shell.Position
+                dragging = false
+            end
+        end
+    end))
+    -- ===== END DRAG LOGIC =====
 
     local function updateScale()
         local camera = workspace.CurrentCamera
@@ -532,29 +594,7 @@ function NexusLib:CreateWindow(config)
     table.insert(window._connections, workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(bindCamera))
     table.insert(window._connections, { Disconnect = function() if cameraConnection then cameraConnection:Disconnect() end end })
 
-    local dragging, dragStart, startPosition
-    table.insert(window._connections, top.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging, dragStart, startPosition = true, input.Position, shell.Position
-        end
-    end))
-    table.insert(window._connections, UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - dragStart
-            shell.Position = startPosition + UDim2.fromOffset(delta.X / scale.Scale, delta.Y / scale.Scale)
-            shadow.Position = shell.Position + UDim2.fromOffset(0, 5)
-        end
-    end))
-    table.insert(window._connections, UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            if dragging then window._openPosition = shell.Position end
-            dragging = false
-        end
-    end))
-
-    bindActivation(close, function() window:Destroy() end)
-    bindActivation(minimize, function() window:Minimize() end)
-
+    -- Launcher drag logic (independent)
     local launcherDragging = false
     local launcherMoved = false
     local launcherPointer = nil
@@ -607,16 +647,23 @@ function NexusLib:CreateWindow(config)
     bindActivation(launcher, function()
         if not launcherMoved then window:Open() end
     end)
+
+    -- Keybind toggle
     table.insert(window._connections, UserInputService.InputBegan:Connect(function(input)
         if input.KeyCode == window._keybind and not UserInputService:GetFocusedTextBox() then
             window:Toggle()
         end
     end))
 
+    -- Minimize and Close buttons
+    bindActivation(close, function() window:Destroy() end)
+    bindActivation(minimize, function() window:Minimize() end)
+
     launcher.Visible = false
     tween(shell, Motion.enter, { Position = UDim2.new(0.5, 0, 0.5, 0) })
     tween(panelScale, Motion.enter, { Scale = 1 })
     tween(shadow, Motion.enter, { BackgroundTransparency = 1, Position = UDim2.new(0.5, 0, 0.5, 5) })
+
     return window
 end
 
@@ -700,9 +747,6 @@ function Window:_select(tab, instant)
         self._pageTweens[page] = nil
     end
 
-    -- Normalize every page before revealing the next one. Roblox applies
-    -- visibility before tween completion, so overlapping exit/entry tweens can
-    -- render both scrolling pages for one frame during rapid switching.
     for _, item in ipairs(self._tabs) do
         if item ~= tab then
             item._page.Visible = false
@@ -727,24 +771,30 @@ function Window:_select(tab, instant)
     end
 end
 
+-- ===== FIXED MINIMIZE / OPEN / TOGGLE =====
 function Window:Minimize()
     if not self._open then return end
     resetHoverLayers(self._shell)
     self._open = false
     self._visibilityId = self._visibilityId + 1
     local visibilityId = self._visibilityId
-    local launcher = self._gui:FindFirstChild("NexusLauncher")
-    if launcher then
-        local newSize = self._launcherSize * self._scale.Scale
-        launcher.Size = UDim2.fromOffset(newSize, newSize)
-    end
+
+    -- Tween out
     tween(self._shell, Motion.exit, { Position = self._openPosition + UDim2.fromOffset(0, 12), GroupTransparency = 1 })
     tween(self._panelScale, Motion.exit, { Scale = 0.975 })
     tween(self._shadow, Motion.exit, { BackgroundTransparency = 1 })
+
+    -- After tween, hide shell and show launcher
     task.delay(0.21, function()
         if self._visibilityId ~= visibilityId or self._open then return end
-        if self._shell then self._shell.Visible = false end
+        if self._shell then
+            self._shell.Visible = false
+            self._shell.GroupTransparency = 1
+        end
+        local launcher = self._launcher
         if launcher then
+            local newSize = self._launcherSize * (self._scale and self._scale.Scale or 1)
+            launcher.Size = UDim2.fromOffset(newSize, newSize)
             launcher.Visible = true
             local visual = launcher:FindFirstChild("LauncherVisual")
             if visual then
@@ -759,24 +809,41 @@ function Window:Open()
     if self._open then return end
     self._open = true
     self._visibilityId = self._visibilityId + 1
-    local launcher = self._gui:FindFirstChild("NexusLauncher")
+
+    -- Hide launcher
+    local launcher = self._launcher
     if launcher then
         resetHoverLayers(launcher)
         launcher.Visible = false
-        local newSize = self._launcherSize * self._scale.Scale
-        launcher.Size = UDim2.fromOffset(newSize, newSize)
+        local visual = launcher:FindFirstChild("LauncherVisual")
+        if visual then
+            visual.BackgroundTransparency = 1
+        end
     end
-    self._shell.Visible = true
-    self._shell.GroupTransparency = 1
-    tween(self._shell, Motion.enter, { Position = self._openPosition, GroupTransparency = 0 })
+
+    -- Show shell and tween in
+    if self._shell then
+        self._shell.Visible = true
+        self._shell.GroupTransparency = 1
+        tween(self._shell, Motion.enter, { Position = self._openPosition, GroupTransparency = 0 })
+    end
     tween(self._panelScale, Motion.enter, { Scale = 1 })
-    tween(self._shadow, Motion.enter, { BackgroundTransparency = 1 })
+    tween(self._shadow, Motion.enter, { BackgroundTransparency = 1, Position = self._openPosition + UDim2.fromOffset(0, 5) })
 end
 
-function Window:Toggle() if self._open then self:Minimize() else self:Open() end end
+function Window:Toggle()
+    if self._open then
+        self:Minimize()
+    else
+        self:Open()
+    end
+end
+-- ===== END FIXED MINIMIZE/OPEN =====
 
 function Window:Destroy()
-    for _, connection in ipairs(self._connections) do pcall(function() connection:Disconnect() end) end
+    for _, connection in ipairs(self._connections) do
+        pcall(function() connection:Disconnect() end)
+    end
     if self._gui then self._gui:Destroy() end
 end
 
@@ -959,8 +1026,6 @@ function Section:CreateDropdown(config)
     return { _frame = outer, Get = function() return selected end, Set = function(_, v) selected = v; value.Text = tostring(v) end }
 end
 
--- Multi-select dropdown: choices stay open while they are selected and use a
--- highlight treatment instead of a per-choice toggle control.
 function Section:CreateMultiDropdown(config)
     config = config or {}
     local options = config.Options or {}
