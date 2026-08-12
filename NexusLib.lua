@@ -11,23 +11,24 @@ local guiParent = player:WaitForChild("PlayerGui")
 
 local NexusLib = { _windows = {}, _notificationGui = nil }
 
+-- iOS dark system palette: layered graphite surfaces, one confident blue accent.
 local C = {
-    canvas = Color3.fromRGB(15, 16, 17),
-    shell = Color3.fromRGB(27, 28, 29),
-    rail = Color3.fromRGB(20, 21, 22),
-    raised = Color3.fromRGB(37, 38, 39),
-    hover = Color3.fromRGB(46, 47, 48),
-    pressed = Color3.fromRGB(40, 38, 33),
-    line = Color3.fromRGB(67, 68, 67),
-    lineSoft = Color3.fromRGB(48, 49, 49),
-    ivory = Color3.fromRGB(241, 238, 229),
-    secondary = Color3.fromRGB(167, 168, 164),
-    muted = Color3.fromRGB(101, 104, 103),
-    brass = Color3.fromRGB(196, 161, 101),
-    brassSoft = Color3.fromRGB(74, 63, 45),
-    mist = Color3.fromRGB(126, 157, 160),
-    success = Color3.fromRGB(132, 164, 139),
-    danger = Color3.fromRGB(184, 91, 81),
+    canvas = Color3.fromRGB(20, 18, 24),
+    shell = Color3.fromRGB(30, 28, 34),
+    rail = Color3.fromRGB(25, 23, 29),
+    raised = Color3.fromRGB(38, 36, 43),
+    hover = Color3.fromRGB(50, 47, 56),
+    pressed = Color3.fromRGB(61, 57, 68),
+    line = Color3.fromRGB(72, 68, 78),
+    lineSoft = Color3.fromRGB(53, 49, 59),
+    ivory = Color3.fromRGB(231, 225, 229),
+    secondary = Color3.fromRGB(202, 194, 201),
+    muted = Color3.fromRGB(150, 143, 153),
+    brass = Color3.fromRGB(208, 188, 255),
+    brassSoft = Color3.fromRGB(74, 67, 88),
+    mist = Color3.fromRGB(255, 216, 228),
+    success = Color3.fromRGB(158, 225, 167),
+    danger = Color3.fromRGB(255, 180, 171),
 }
 
 local Motion = {
@@ -390,22 +391,22 @@ function NexusLib:CreateWindow(config)
     local shell = make("CanvasGroup", {
         Name = "Panel", BackgroundColor3 = C.shell, BorderSizePixel = 0,
         AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 18),
-        Size = UDim2.fromOffset(760, 500),
+        Size = UDim2.fromOffset(780, 516),
         ClipsDescendants = true, GroupTransparency = 0,
     }, viewport)
-    corner(shell, 20)
+    corner(shell, 26)
     local panelScale = make("UIScale", { Scale = 0.975 }, shell)
     make("UIGradient", {
         Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(224, 224, 224)), Rotation = 90,
     }, shell)
     local rail = make("Frame", {
         Name = "Rail", BorderSizePixel = 0, BackgroundColor3 = C.rail,
-        Size = UDim2.new(0, 184, 1, 0),
+        Size = UDim2.new(0, 196, 1, 0),
     }, shell)
-    corner(rail, 20)
+    corner(rail, 26)
     make("Frame", {
         Name = "InnerEdgeFill", BorderSizePixel = 0, BackgroundColor3 = C.rail,
-        Position = UDim2.new(1, -20, 0, 0), Size = UDim2.new(0, 20, 1, 0),
+        Position = UDim2.new(1, -26, 0, 0), Size = UDim2.new(0, 26, 1, 0),
     }, rail)
     make("Frame", {
         BorderSizePixel = 0, BackgroundColor3 = C.lineSoft,
@@ -421,10 +422,10 @@ function NexusLib:CreateWindow(config)
     }, rail)
     corner(mark, 9); stroke(mark, C.brassSoft, 0.08)
 
-    local brand = label(rail, player.DisplayName, 12, C.ivory, Enum.Font.GothamBold)
+    local brand = label(rail, config.Title or player.DisplayName, 12, C.ivory, Enum.Font.GothamBold)
     brand.Position = UDim2.fromOffset(58, 18); brand.Size = UDim2.new(1, -70, 0, 20)
     brand.TextTruncate = Enum.TextTruncate.AtEnd
-    local subtitle = label(rail, "@" .. player.Name, 9, C.muted, Enum.Font.GothamMedium)
+    local subtitle = label(rail, config.Subtitle or ("@" .. player.Name), 9, C.muted, Enum.Font.GothamMedium)
     subtitle.Position = UDim2.fromOffset(58, 38); subtitle.Size = UDim2.new(1, -70, 0, 14)
     subtitle.TextTruncate = Enum.TextTruncate.AtEnd
 
@@ -440,9 +441,9 @@ function NexusLib:CreateWindow(config)
 
     local top = make("Frame", {
         Name = "TopBar", BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(184, 0), Size = UDim2.new(1, -184, 0, 72),
+        Position = UDim2.fromOffset(196, 0), Size = UDim2.new(1, -196, 0, 78),
     }, shell)
-    local context = label(top, "SESSION", 10, C.brass, Enum.Font.GothamBold)
+    local context = label(top, "SESSION", 10, C.secondary, Enum.Font.GothamBold)
     context.Position = UDim2.fromOffset(24, 15); context.Size = UDim2.new(1, -120, 0, 14)
     local pageTitle = label(top, "Overview", 18, C.ivory, Enum.Font.GothamBold)
     pageTitle.Position = UDim2.fromOffset(24, 30); pageTitle.Size = UDim2.new(1, -120, 0, 26)
@@ -475,15 +476,15 @@ function NexusLib:CreateWindow(config)
     local bottomBarHeight = 22
     local content = make("Frame", {
         Name = "ContentViewport", BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(184, 72), Size = UDim2.new(1, -184, 1, -(72 + bottomBarHeight)),
+        Position = UDim2.fromOffset(196, 78), Size = UDim2.new(1, -196, 1, -(78 + bottomBarHeight)),
         ClipsDescendants = true,
     }, shell)
 
     -- Bottom bar for dragging
     local bottomBar = make("Frame", {
         Name = "BottomBar", BackgroundColor3 = C.rail, BorderSizePixel = 0,
-        Position = UDim2.new(0, 184, 1, -bottomBarHeight),
-        Size = UDim2.new(1, -184, 0, bottomBarHeight),
+        Position = UDim2.new(0, 196, 1, -bottomBarHeight),
+        Size = UDim2.new(1, -196, 0, bottomBarHeight),
         ZIndex = 1,
     }, shell)
     corner(bottomBar, 20)
@@ -574,7 +575,7 @@ function NexusLib:CreateWindow(config)
         local camera = workspace.CurrentCamera
         if not camera then return end
         local v = camera.ViewportSize
-        scale.Scale = math.min(1, v.X / 760, v.Y / 500)
+        scale.Scale = math.min(1, v.X / 780, v.Y / 516)
         scale.Scale = math.max(0.55, scale.Scale)
         if launcher then
             local newSize = window._launcherSize * scale.Scale
@@ -701,7 +702,7 @@ function Window:CreateTab(name)
         ScrollBarThickness = 2, ScrollBarImageColor3 = C.brass,
         ScrollBarImageTransparency = 0.42,
         VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar,
-        ElasticBehavior = Enum.ElasticBehavior.Never,
+        ElasticBehavior = Enum.ElasticBehavior.WhenScrollable,
         ScrollingDirection = Enum.ScrollingDirection.Y,
     }, page)
     padding(scroll, 24, 4, 4, 24)
@@ -858,7 +859,7 @@ function Tab:CreateHeader(config)
         Name = "Header", LayoutOrder = nextOrder(self), BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 0, 66),
     }, self._scroll)
-    local eyebrow = label(frame, "LIVE WORKSPACE", 9, C.brass, Enum.Font.GothamBold)
+    local eyebrow = label(frame, "LIVE WORKSPACE", 9, C.muted, Enum.Font.GothamBold)
     eyebrow.Size = UDim2.new(1, 0, 0, 14)
     local title = label(frame, config.Title or "Overview", 22, C.ivory, Enum.Font.GothamBold)
     title.Position = UDim2.fromOffset(0, 17); title.Size = UDim2.new(1, 0, 0, 28)
@@ -872,7 +873,7 @@ function Tab:CreateSection(name)
         Name = name .. "Section", LayoutOrder = nextOrder(self), BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 0, 24),
     }, self._scroll)
-    local text = label(header, string.upper(name), 9, C.brass, Enum.Font.GothamBold)
+    local text = label(header, string.upper(name), 9, C.muted, Enum.Font.GothamBold)
     text.Size = UDim2.new(1, 0, 1, 0)
     local section = setmetatable({ _tab = self, _name = name }, Section)
     return section
@@ -885,12 +886,12 @@ local function controlRow(section, name, height)
         BackgroundColor3 = C.lineSoft, BorderSizePixel = 0,
         Size = UDim2.new(1, 0, 0, height or 48),
     }, tab._scroll)
-    corner(outer, 13)
+    corner(outer, 16)
     local core = make("Frame", {
         Name = "Core", BackgroundColor3 = C.raised, BorderSizePixel = 0,
         Position = UDim2.fromOffset(1, 1), Size = UDim2.new(1, -2, 1, -2),
     }, outer)
-    corner(core, 12)
+    corner(core, 15)
     return outer, core
 end
 
@@ -906,16 +907,16 @@ function Section:CreateToggle(config)
     local track = make("Frame", {
         BackgroundColor3 = config.Default and C.brass or Color3.fromRGB(55, 57, 57),
         AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -14, 0.5, 0),
-        Size = UDim2.fromOffset(38, 22), ZIndex = 3,
+        Size = UDim2.fromOffset(42, 24), ZIndex = 3,
     }, core)
-    corner(track, 11)
+    corner(track, 12)
     local knob = make("Frame", {
         BackgroundColor3 = C.ivory, BorderSizePixel = 0,
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = config.Default and UDim2.new(1, -11, 0.5, 0) or UDim2.new(0, 11, 0.5, 0),
-        Size = UDim2.fromOffset(14, 14), ZIndex = 4,
+        Size = UDim2.fromOffset(16, 16), ZIndex = 4,
     }, track)
-    corner(knob, 7)
+    corner(knob, 8)
     local state = config.Default == true
     local function set(value, emit)
         state = value == true
@@ -967,7 +968,7 @@ function Section:CreateDropdown(config)
     local chevron = make("Frame", {
         Name = "Chevron", BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -15, 0, 24),
-        Size = UDim2.fromOffset(14, 14), ZIndex = 6,
+        Size = UDim2.fromOffset(16, 16), ZIndex = 6,
     }, core)
     local chevronLeft = make("Frame", {
         BorderSizePixel = 0, BackgroundColor3 = C.brass,
@@ -1056,7 +1057,7 @@ function Section:CreateMultiDropdown(config)
     local chevron = make("Frame", {
         Name = "Chevron", BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0, 24),
-        Size = UDim2.fromOffset(14, 14), ZIndex = 6,
+        Size = UDim2.fromOffset(16, 16), ZIndex = 6,
     }, core)
     make("Frame", { BorderSizePixel = 0, BackgroundColor3 = C.brass, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(5, 7), Size = UDim2.fromOffset(7, 2), Rotation = 45, ZIndex = 6 }, chevron)
     make("Frame", { BorderSizePixel = 0, BackgroundColor3 = C.brass, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromOffset(9, 7), Size = UDim2.fromOffset(7, 2), Rotation = -45, ZIndex = 6 }, chevron)
@@ -1197,7 +1198,7 @@ function Tab:CreateFeaturedCard(config)
         Position = UDim2.fromOffset(1, 1), Size = UDim2.new(1, -2, 1, -2),
     }, outer)
     corner(core, 15)
-    local tag = label(core, config.Tag or "DETAIL", 9, C.brass, Enum.Font.GothamBold)
+    local tag = label(core, config.Tag or "DETAIL", 9, C.secondary, Enum.Font.GothamBold)
     tag.Position = UDim2.fromOffset(16, 13); tag.Size = UDim2.new(1, -130, 0, 14)
     local title = label(core, config.Title or "Nexus", 16, C.ivory, Enum.Font.GothamBold)
     title.Position = UDim2.fromOffset(16, 30); title.Size = UDim2.new(1, -150, 0, 24)
@@ -1207,10 +1208,10 @@ function Tab:CreateFeaturedCard(config)
     local action = make("Frame", {
         Name = "Action", BackgroundColor3 = C.brass, BorderSizePixel = 0,
         Active = true, AnchorPoint = Vector2.new(1, 0.5),
-        Position = UDim2.new(1, -16, 0.5, 0), Size = UDim2.fromOffset(112, 38),
+        Position = UDim2.new(1, -16, 0.5, 0), Size = UDim2.fromOffset(116, 40),
         ZIndex = 4,
     }, core)
-    corner(action, 11)
+    corner(action, 19)
     local actionHover = hoverLayer(action, C.ivory, 11, 5)
     local actionText = label(action, config.ButtonText or "OPEN", 10, C.canvas, Enum.Font.GothamBold)
     actionText.TextXAlignment = Enum.TextXAlignment.Center
