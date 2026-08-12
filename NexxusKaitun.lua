@@ -1,298 +1,202 @@
--- [[ MASTER KAITUN OVERLAY ]] --
-local CoreGui = game:GetService("CoreGui")
+local StatusToast = {}
+
 local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local PlaceId = game.PlaceId
 
--- 1. Fetch Real Game Name (No fallback "Game (0)")
-local GameName = ""
-if PlaceId and PlaceId > 0 then
-    local okGame, gameInfo = pcall(function()
-        return MarketplaceService:GetProductInfo(PlaceId)
-    end)
-    if okGame and gameInfo and gameInfo.Name then
-        GameName = gameInfo.Name
+local Palette = {
+    surface = Color3.fromRGB(14, 16, 18),
+    bevel = Color3.fromRGB(28, 32, 35),
+    text = Color3.fromRGB(241, 243, 244),
+    green = Color3.fromRGB(67, 235, 143),
+    amber = Color3.fromRGB(255, 174, 62),
+    red = Color3.fromRGB(255, 82, 92),
+}
+
+local Statuses = {
+    success = { color = Palette.green, label = "ONLINE" },
+    info = { color = Palette.green, label = "ACTIVE" },
+    warning = { color = Palette.amber, label = "NOTICE" },
+    error = { color = Palette.red, label = "ALERT" },
+}
+
+local Enter = TweenInfo.new(0.48, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local Exit = TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+local Soft = TweenInfo.new(0.26, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local PulseOut = TweenInfo.new(0.72, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+local PulseIn = TweenInfo.new(0.72, Enum.EasingStyle.Sine, Enum.EasingDirection.In)
+
+local active = nil
+
+local function create(class, props, parent)
+    local obj = Instance.new(class)
+    for k, v in pairs(props) do obj[k] = v end
+    obj.Parent = parent
+    return obj
+end
+
+local function round(parent, r)
+    return create("UICorner", { CornerRadius = UDim.new(0, r) }, parent)
+end
+
+local function tween(obj, info, props)
+    local t = TweenService:Create(obj, info, props)
+    t:Play()
+    return t
+end
+
+function StatusToast.Show(config)
+    config = config or {}
+    if active then active:Close(true) end
+
+    local state = Statuses[config.Status or "success"] or Statuses.success
+    local text = config.Text or config.Message or "Loading..."
+
+    local gui = Players.LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("NexusStatusToast")
+    if gui then gui:Destroy() end
+    gui = create("ScreenGui", {
+        Name = "NexusStatusToast",
+        IgnoreGuiInset = true,
+        ResetOnSpawn = false,
+        DisplayOrder = 1002,
+    }, Players.LocalPlayer.PlayerGui)
+
+    local holder = create("Frame", {
+        BackgroundTransparency = 1,
+        AnchorPoint = Vector2.new(0.5, 0),
+        Position = UDim2.new(0.5, 0, 0, 14),
+        Size = UDim2.fromOffset(278, 48),
+    }, gui)
+
+    local bezel = create("Frame", {
+        BackgroundColor3 = Palette.bevel,
+        BackgroundTransparency = 0.08,
+        BorderSizePixel = 0,
+        Size = UDim2.fromScale(1, 1),
+    }, holder)
+    round(bezel, 24)
+    create("UIStroke", { Color = Color3.fromRGB(125, 132, 132), Transparency = 0.68, Thickness = 1 }, bezel)
+
+    local card = create("CanvasGroup", {
+        BackgroundColor3 = Palette.surface,
+        BackgroundTransparency = 0.01,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.new(1, -4, 1, -4),
+        GroupTransparency = 1,
+        ClipsDescendants = true,
+    }, bezel)
+    round(card, 22)
+
+    local cardScale = create("UIScale", { Scale = 0.86 }, card)
+
+    create("Frame", {
+        BackgroundColor3 = Color3.new(1, 1, 1),
+        BackgroundTransparency = 0.965,
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 15, 0, 3),
+        Size = UDim2.new(1, -30, 0, 1),
+    }, card)
+
+    local beacon = create("Frame", {
+        BackgroundColor3 = Color3.fromRGB(19, 29, 27),
+        BorderSizePixel = 0,
+        AnchorPoint = Vector2.new(0, 0.5),
+        Position = UDim2.new(0, 12, 0.5, 0),
+        Size = UDim2.fromOffset(21, 21),
+    }, card)
+    round(beacon, 13)
+
+    local beaconRim = create("UIStroke", { Color = state.color, Transparency = 0.77, Thickness = 1 }, beacon)
+
+    local halo = create("Frame", {
+        BackgroundColor3 = state.color,
+        BackgroundTransparency = 0.81,
+        BorderSizePixel = 0,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromOffset(15, 15),
+    }, beacon)
+    round(halo, 8)
+
+    local dot = create("Frame", {
+        BackgroundColor3 = state.color,
+        BorderSizePixel = 0,
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromOffset(10, 10),
+    }, beacon)
+    round(dot, 5)
+
+    local msg = create("TextLabel", {
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 48, 0, 0),
+        Size = UDim2.new(1, -62, 1, 0),
+        Text = text,
+        TextColor3 = Palette.text,
+        TextTransparency = 1,
+        TextSize = 14,
+        Font = Enum.Font.GothamSemibold,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+    }, card)
+
+    local progress = create("Frame", {
+        BackgroundColor3 = state.color,
+        BorderSizePixel = 0,
+        BackgroundTransparency = 0.34,
+        AnchorPoint = Vector2.new(0, 1),
+        Position = UDim2.new(0, 20, 1, -3),
+        Size = UDim2.new(1, -40, 0, 1),
+    }, card)
+    round(progress, 1)
+
+    local closed = false
+    local handle = {}
+
+    function handle:Update(nextText, nextStatus)
+        if closed then return end
+        if nextStatus then
+            state = Statuses[nextStatus] or state
+            beaconRim.Color = state.color
+            halo.BackgroundColor3 = state.color
+            dot.BackgroundColor3 = state.color
+            progress.BackgroundColor3 = state.color
+        end
+        tween(msg, Soft, { TextTransparency = 1 }).Completed:Wait()
+        if closed then return end
+        msg.Text = nextText
+        tween(msg, Soft, { TextTransparency = 0 })
     end
-end
 
--- 2. Target Parent Execution
-local TargetParent = gethui and gethui() or (RunService:IsStudio() and (LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui") or game:GetService("StarterGui")) or CoreGui)
+    function handle:Close(immediate)
+        if closed then return end
+        closed = true
+        active = nil
+        if immediate then gui:Destroy() return end
+        tween(card, Exit, { GroupTransparency = 1 })
+        tween(cardScale, Exit, { Scale = 0.91 })
+        task.delay(0.24, function() if gui.Parent then gui:Destroy() end end)
+    end
 
-if TargetParent:FindFirstChild("KaitunOverlay") then
-    TargetParent.KaitunOverlay:Destroy()
-end
+    active = handle
 
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "KaitunOverlay"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent = TargetParent
+    tween(card, Enter, { GroupTransparency = 0 })
+    tween(cardScale, TweenInfo.new(0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+    tween(msg, TweenInfo.new(0.34, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { TextTransparency = 0 })
 
--- Floating Main Overlay Card
-local OverlayCard = Instance.new("Frame")
-OverlayCard.Size = UDim2.new(0, 460, 0, 230)
-OverlayCard.Position = UDim2.new(0.5, -230, 0.04, 0)
-OverlayCard.BackgroundColor3 = Color3.fromRGB(14, 15, 22)
-OverlayCard.BorderSizePixel = 0
-OverlayCard.ClipsDescendants = true
-OverlayCard.Parent = ScreenGui
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 14)
-UICorner.Parent = OverlayCard
-
-local UIStroke = Instance.new("UIStroke")
-UIStroke.Color = Color3.fromRGB(0, 229, 255)
-UIStroke.Thickness = 1.5
-UIStroke.Transparency = 0.2
-UIStroke.Parent = OverlayCard
-
--- Header Title (No Icon, No OVERLAY, Clean Game Name)
-local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1, 0, 0, 38)
-Header.BackgroundColor3 = Color3.fromRGB(20, 22, 32)
-Header.BorderSizePixel = 0
-Header.Parent = OverlayCard
-
-local HeaderTextString = "<b>KAITUN</b>"
-if GameName ~= "" then
-    HeaderTextString = "<b>KAITUN</b> | <font color='#00E5FF'>" .. GameName .. "</font>"
-end
-
-local HeaderTitle = Instance.new("TextLabel")
-HeaderTitle.Size = UDim2.new(1, -20, 1, 0)
-HeaderTitle.Position = UDim2.new(0, 12, 0, 0)
-HeaderTitle.BackgroundTransparency = 1
-HeaderTitle.Text = HeaderTextString
-HeaderTitle.RichText = true
-HeaderTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-HeaderTitle.TextSize = 13
-HeaderTitle.Font = Enum.Font.GothamBold
-HeaderTitle.TextXAlignment = Enum.TextXAlignment.Left
-HeaderTitle.Parent = Header
-
--- User Headshot Avatar
-local AvatarFrame = Instance.new("ImageLabel")
-AvatarFrame.Size = UDim2.new(0, 46, 0, 46)
-AvatarFrame.Position = UDim2.new(0, 12, 0, 48)
-AvatarFrame.BackgroundColor3 = Color3.fromRGB(25, 28, 40)
-AvatarFrame.Image = "rbxassetid://0"
-AvatarFrame.Parent = OverlayCard
-
-local AvatarCorner = Instance.new("UICorner")
-AvatarCorner.CornerRadius = UDim.new(1, 0)
-AvatarCorner.Parent = AvatarFrame
-
-local AvatarStroke = Instance.new("UIStroke")
-AvatarStroke.Color = Color3.fromRGB(0, 229, 255)
-AvatarStroke.Thickness = 1
-AvatarStroke.Parent = AvatarFrame
-
-if LocalPlayer then
     task.spawn(function()
-        local content = Players:GetUserThumbnailAsync(
-            LocalPlayer.UserId,
-            Enum.ThumbnailType.HeadShot,
-            Enum.ThumbnailSize.Size420x420
-        )
-        if content then
-            AvatarFrame.Image = content
+        while not closed and gui.Parent do
+            tween(halo, PulseOut, { Size = UDim2.fromOffset(21, 21), BackgroundTransparency = 0.93 }).Completed:Wait()
+            if closed then break end
+            tween(halo, PulseIn, { Size = UDim2.fromOffset(15, 15), BackgroundTransparency = 0.81 }).Completed:Wait()
         end
     end)
+
+    local dur = config.Duration or 5
+    tween(progress, TweenInfo.new(dur, Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 0, 1) })
+    task.delay(dur, function() handle:Close() end)
+
+    return handle
 end
 
--- Account Display Name
-local AccountText = LocalPlayer and (LocalPlayer.DisplayName .. " (@" .. LocalPlayer.Name .. ")") or ""
-local UserLabel = Instance.new("TextLabel")
-UserLabel.Size = UDim2.new(0, 320, 0, 20)
-UserLabel.Position = UDim2.new(0, 68, 0, 48)
-UserLabel.BackgroundTransparency = 1
-UserLabel.Text = "Account: <font color='#00E5FF'>" .. AccountText .. "</font>"
-UserLabel.RichText = true
-UserLabel.TextColor3 = Color3.fromRGB(220, 220, 230)
-UserLabel.TextSize = 12
-UserLabel.Font = Enum.Font.GothamBold
-UserLabel.TextXAlignment = Enum.TextXAlignment.Left
-UserLabel.Parent = OverlayCard
-
--- Re-added Elapsed Time Counter
-local TimerLabel = Instance.new("TextLabel")
-TimerLabel.Size = UDim2.new(0, 320, 0, 18)
-TimerLabel.Position = UDim2.new(0, 68, 0, 70)
-TimerLabel.BackgroundTransparency = 1
-TimerLabel.Text = "Elapsed Time: <font color='#FFAA00'>00:00:00</font>"
-TimerLabel.RichText = true
-TimerLabel.TextColor3 = Color3.fromRGB(160, 165, 180)
-TimerLabel.TextSize = 12
-TimerLabel.Font = Enum.Font.GothamMedium
-TimerLabel.TextXAlignment = Enum.TextXAlignment.Left
-TimerLabel.Parent = OverlayCard
-
--- Task Box ("TASK:")
-local TaskBox = Instance.new("Frame")
-TaskBox.Size = UDim2.new(1, -24, 0, 44)
-TaskBox.Position = UDim2.new(0, 12, 0, 104)
-TaskBox.BackgroundColor3 = Color3.fromRGB(20, 22, 34)
-TaskBox.Parent = OverlayCard
-
-local TaskCorner = Instance.new("UICorner")
-TaskCorner.CornerRadius = UDim.new(0, 8)
-TaskCorner.Parent = TaskBox
-
-local TaskTitle = Instance.new("TextLabel")
-TaskTitle.Size = UDim2.new(1, -16, 0, 18)
-TaskTitle.Position = UDim2.new(0, 10, 0, 3)
-TaskTitle.BackgroundTransparency = 1
-TaskTitle.Text = "TASK:"
-TaskTitle.TextColor3 = Color3.fromRGB(120, 125, 140)
-TaskTitle.TextSize = 10
-TaskTitle.Font = Enum.Font.GothamBold
-TaskTitle.TextXAlignment = Enum.TextXAlignment.Left
-TaskTitle.Parent = TaskBox
-
-local TaskStatus = Instance.new("TextLabel")
-TaskStatus.Name = "TaskStatus"
-TaskStatus.Size = UDim2.new(1, -16, 0, 18)
-TaskStatus.Position = UDim2.new(0, 10, 0, 21)
-TaskStatus.BackgroundTransparency = 1
-TaskStatus.Text = "▶ Initializing Script..."
-TaskStatus.TextColor3 = Color3.fromRGB(0, 255, 136)
-TaskStatus.TextSize = 12
-TaskStatus.Font = Enum.Font.GothamBold
-TaskStatus.TextXAlignment = Enum.TextXAlignment.Left
-TaskStatus.Parent = TaskBox
-
--- Expose SetTask API
-local setTaskFunc = function(text)
-    TaskStatus.Text = "▶ " .. tostring(text)
-end
-if getgenv then getgenv().SetTask = setTaskFunc end
-_G.SetTask = setTaskFunc
-
--- Stats Row (LEVEL, MONEY, FPS)
-local StatsRow = Instance.new("Frame")
-StatsRow.Size = UDim2.new(1, -24, 0, 50)
-StatsRow.Position = UDim2.new(0, 12, 0, 158)
-StatsRow.BackgroundTransparency = 1
-StatsRow.Parent = OverlayCard
-
-local StatLayout = Instance.new("UIListLayout")
-StatLayout.FillDirection = Enum.FillDirection.Horizontal
-StatLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-StatLayout.Padding = UDim.new(0, 8)
-StatLayout.Parent = StatsRow
-
-local StatLabels = {}
-local function CreateStatItem(key, name, defaultVal, colorHex)
-    local Item = Instance.new("Frame")
-    Item.Size = UDim2.new(0.315, 0, 1, 0)
-    Item.BackgroundColor3 = Color3.fromRGB(22, 24, 36)
-    Item.Parent = StatsRow
-
-    local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 6)
-    Corner.Parent = Item
-
-    local ValLabel = Instance.new("TextLabel")
-    ValLabel.Name = "ValLabel"
-    ValLabel.Size = UDim2.new(1, 0, 0, 24)
-    ValLabel.Position = UDim2.new(0, 0, 0, 4)
-    ValLabel.BackgroundTransparency = 1
-    ValLabel.Text = defaultVal
-    ValLabel.TextColor3 = Color3.fromHex(colorHex)
-    ValLabel.TextSize = 14
-    ValLabel.Font = Enum.Font.GothamBold
-    ValLabel.Parent = Item
-
-    local SubLabel = Instance.new("TextLabel")
-    SubLabel.Size = UDim2.new(1, 0, 0, 14)
-    SubLabel.Position = UDim2.new(0, 0, 0, 26)
-    SubLabel.BackgroundTransparency = 1
-    SubLabel.Text = name
-    SubLabel.TextColor3 = Color3.fromRGB(140, 145, 160)
-    SubLabel.TextSize = 10
-    SubLabel.Font = Enum.Font.Gotham
-    SubLabel.Parent = Item
-
-    StatLabels[key] = ValLabel
-end
-
-CreateStatItem("Level", "LEVEL", "1", "00E5FF")
-CreateStatItem("Money", "MONEY", "$0", "00FF88")
-CreateStatItem("FPS", "FPS", "60 FPS", "FFAA00")
-
--- Formatting Helper ($1,234,567)
-local function FormatNumber(val)
-    local str = tostring(math.floor(tonumber(val) or 0))
-    return str:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
-end
-
--- Real-Time FPS Loop
-local frameCount = 0
-local lastFpsUpdate = os.clock()
-
-RunService.RenderStepped:Connect(function(dt)
-    frameCount = frameCount + 1
-    local now = os.clock()
-    if now - lastFpsUpdate >= 0.5 then
-        local currentFps = math.floor(frameCount / (now - lastFpsUpdate))
-        StatLabels["FPS"].Text = currentFps .. " FPS"
-        frameCount = 0
-        lastFpsUpdate = now
-    end
-end)
-
--- Real-Time Level & Money Sync Loop
-if LocalPlayer then
-    task.spawn(function()
-        while task.wait(0.5) do
-            -- Level
-            local lvl = 1
-            local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
-            local dataFolder = LocalPlayer:FindFirstChild("Data")
-            
-            if leaderstats and leaderstats:FindFirstChild("Level") then
-                lvl = leaderstats.Level.Value
-            elseif leaderstats and leaderstats:FindFirstChild("Lvl") then
-                lvl = leaderstats.Lvl.Value
-            elseif dataFolder and dataFolder:FindFirstChild("Level") then
-                lvl = dataFolder.Level.Value
-            elseif LocalPlayer:GetAttribute("Level") then
-                lvl = LocalPlayer:GetAttribute("Level")
-            end
-            StatLabels["Level"].Text = FormatNumber(lvl)
-
-            -- Money
-            local money = 0
-            if leaderstats and leaderstats:FindFirstChild("Money") then
-                money = leaderstats.Money.Value
-            elseif leaderstats and leaderstats:FindFirstChild("Beli") then
-                money = leaderstats.Beli.Value
-            elseif leaderstats and leaderstats:FindFirstChild("Gold") then
-                money = leaderstats.Gold.Value
-            elseif dataFolder and dataFolder:FindFirstChild("Money") then
-                money = dataFolder.Money.Value
-            elseif dataFolder and dataFolder:FindFirstChild("Beli") then
-                money = dataFolder.Beli.Value
-            elseif LocalPlayer:GetAttribute("Money") then
-                money = LocalPlayer:GetAttribute("Money")
-            end
-            StatLabels["Money"].Text = "$" .. FormatNumber(money)
-        end
-    end)
-end
-
--- Live Elapsed Time Counter Loop
-local startTime = os.time()
-task.spawn(function()
-    while task.wait(1) do
-        local elapsed = os.time() - startTime
-        local hrs = math.floor(elapsed / 3600)
-        local mins = math.floor((elapsed % 3600) / 60)
-        local secs = elapsed % 60
-        TimerLabel.Text = string.format("Elapsed Time: <font color='#FFAA00'>%02d:%02d:%02d</font>", hrs, mins, secs)
-    end
-end)
+return StatusToast
