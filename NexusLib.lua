@@ -188,6 +188,45 @@ local function setNavIconColor(parts, color)
   end
 end
 
+-- Compact vector-style fallbacks for builds that do not include the optional
+-- icon helper block. They keep CreateWindow and CreateTab functional on every
+-- executor without relying on external assets.
+local function brandIcon(parent, name, position, size, zIndex)
+  local host = make("Frame", {
+    Name = name or "BrandIcon", BackgroundColor3 = C.brass,
+    BorderSizePixel = 0, Position = position or UDim2.fromScale(0, 0),
+    Size = size or UDim2.fromScale(1, 1), ZIndex = zIndex or 1,
+  }, parent)
+  corner(host, 10)
+  local mark = make("TextLabel", {
+    Name = "Mark", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
+    Text = "N", TextColor3 = C.canvas, FontFace = FONT_TITLE,
+    TextSize = 18, TextXAlignment = Enum.TextXAlignment.Center,
+    TextYAlignment = Enum.TextYAlignment.Center, ZIndex = (zIndex or 1) + 1,
+  }, host)
+  return host
+end
+
+local function navIcon(parent, name)
+  local host = make("Frame", {
+    Name = "Icon", BackgroundTransparency = 1,
+    Position = UDim2.fromOffset(11, 9), Size = UDim2.fromOffset(18, 18),
+    ZIndex = 4,
+  }, parent)
+  local glyphs = {
+    Session = "•", Routine = "≡", Shop = "□", Exchange = "↔",
+    Quests = "✓", Upgrade = "↑", Teleport = "⌁", Settings = "⚙",
+  }
+  local glyph = make("TextLabel", {
+    BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1),
+    Text = glyphs[tostring(name)] or "•", TextColor3 = C.muted,
+    FontFace = FONT_LABEL, TextSize = 16,
+    TextXAlignment = Enum.TextXAlignment.Center,
+    TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 5,
+  }, host)
+  return { glyph }, host
+end
+
 local function addPressScale(button)
   local scale = make("UIScale", { Scale = 1 }, button)
   return scale
