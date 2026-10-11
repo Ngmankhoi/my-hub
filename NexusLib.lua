@@ -182,6 +182,8 @@ local function setNavIconColor(parts, color)
       part.Color = color
     elseif part:IsA("ImageLabel") then
       part.ImageColor3 = color
+    elseif part:IsA("TextLabel") or part:IsA("TextButton") then
+      part.TextColor3 = color
     else
       part.BackgroundColor3 = color
     end
@@ -267,6 +269,14 @@ local function bindHover(hitTarget, layer, onEnter, onLeave)
   hitTarget.MouseLeave:Connect(function()
     setHoverVisible(layer, false)
     if onLeave then onLeave() end
+  end)
+end
+
+local function clampScrollPosition(scroll)
+  if not scroll then return end
+  pcall(function()
+    local maxY = math.max(0, scroll.AbsoluteCanvasSize.Y - scroll.AbsoluteWindowSize.Y)
+    scroll.CanvasPosition = Vector2.new(0, math.clamp(scroll.CanvasPosition.Y, 0, maxY))
   end)
 end
 
