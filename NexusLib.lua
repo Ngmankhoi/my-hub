@@ -100,69 +100,73 @@ local function getUIFont(weight: "Regular" | "Medium" | "Bold" | "SemiBold"): En
 	end
 end
 
--- Verified 100% Authentic Lucide Icons on Roblox (Universal 10-digit IDs)
+-- Exact 1:1 Icons from File Gop (Nexus_combined_loader.lua)
 LucianUI.Icons = {
-	Home = "rbxassetid://10723407389",
-	Dashboard = "rbxassetid://10723407389",
-	Routine = "rbxassetid://10723376114",
-	Fishing = "rbxassetid://10723376114",
-	Flame = "rbxassetid://10723376114",
-	Combat = "rbxassetid://10734952036",
-	Sword = "rbxassetid://10734952036",
-	Shop = "rbxassetid://10723345518",
-	Store = "rbxassetid://10723345518",
+	Home = "rbxassetid://98755624629571",           -- Lucide house
+	Dashboard = "rbxassetid://139929981863901",     -- Lucide layout-dashboard
+	Activity = "rbxassetid://94212016861936",       -- Lucide activity
+	Fishing = "rbxassetid://71754848048049",        -- Lucide fishing-rod
+	Fish = "rbxassetid://124360663785796",          -- Lucide fish
+	Bot = "rbxassetid://80451686744860",            -- Lucide bot
+	Combat = "rbxassetid://81872698913435",         -- Lucide swords
+	Sword = "rbxassetid://124448418211665",         -- Lucide sword
+	Play = "rbxassetid://135609604299893",          -- Lucide play
+	Shop = "rbxassetid://128420521375441",          -- Lucide shopping-cart
+	Store = "rbxassetid://90338129673705",          -- Lucide store
+	Bag = "rbxassetid://71885477293226",            -- Lucide shopping-bag
+	Exchange = "rbxassetid://131324733048447",      -- Lucide arrow-left-right
+	Refresh = "rbxassetid://138133190015277",       -- Lucide refresh-cw
+	Repeat = "rbxassetid://121886242955173",        -- Lucide repeat
+	Coins = "rbxassetid://116510979641930",         -- Lucide coins
+	Gem = "rbxassetid://112904952151156",           -- Lucide gem
+	Quests = "rbxassetid://92649798577170",         -- Lucide clipboard-check
+	Scroll = "rbxassetid://74072101474951",         -- Lucide scroll
+	TodoList = "rbxassetid://132980603752108",      -- Lucide list-todo
+	Upgrade = "rbxassetid://81819858538839",        -- Lucide trending-up
+	Zap = "rbxassetid://130551565616516",           -- Lucide zap
+	Sparkles = "rbxassetid://138635884129147",      -- Lucide sparkles
+	Teleport = "rbxassetid://84279202219901",       -- Lucide map-pin
+	Compass = "rbxassetid://115123411028382",       -- Lucide compass
+	Navigation = "rbxassetid://79308213542922",     -- Lucide navigation
+	Send = "rbxassetid://127751956873796",          -- Lucide send
+	Settings = "rbxassetid://80758916183665",       -- Lucide settings gear
+	Sliders = "rbxassetid://85538382643347",        -- Lucide sliders-horizontal
+	Server = "rbxassetid://92188766517878",         -- Lucide server
+	Globe = "rbxassetid://114238209622913",         -- Lucide globe
+	Radio = "rbxassetid://85611589536956",          -- Lucide radio
+	Layers = "rbxassetid://81973586053257",         -- Lucide layers
+	User = "rbxassetid://81589895647169",           -- Lucide user
+	Profile = "rbxassetid://81589895647169",        -- Lucide user
+	Bell = "rbxassetid://97392696311902",           -- Lucide bell
+	Search = "rbxassetid://121018724060431",        -- Lucide search
+	Shield = "rbxassetid://110987169760162",        -- Lucide shield
+	Check = "rbxassetid://93898873302694",          -- Lucide check
+	Close = "rbxassetid://110786993356448",         -- Lucide x
+	Chevron = "rbxassetid://132318504999733",       -- Lucide chevron
+	Flame = "rbxassetid://98218034436456",          -- Lucide flame
+	Crown = "rbxassetid://127843403295538",         -- Lucide crown
+	Trophy = "rbxassetid://131545003268773",        -- Lucide trophy
 	Grid = "rbxassetid://10723345518",
-	Exchange = "rbxassetid://10709791281",
-	Swap = "rbxassetid://10709791281",
-	Quests = "rbxassetid://10709790757",
-	Check = "rbxassetid://10709790757",
-	Upgrade = "rbxassetid://10734952479",
-	Zap = "rbxassetid://10734952479",
-	Teleport = "rbxassetid://10734906744",
-	Navigation = "rbxassetid://10734906744",
-	Compass = "rbxassetid://10723346959",
-	ServerHop = "rbxassetid://10723346959",
-	Globe = "rbxassetid://10723346959",
-	Settings = "rbxassetid://10734950309",
-	Sliders = "rbxassetid://10734951847",
-	Layers = "rbxassetid://10723377626",
-	Infinity = "rbxassetid://10723415766",
-	NexusEmblem = "rbxassetid://10723415766",
-	Shield = "rbxassetid://10734950813",
-	User = "rbxassetid://10747373176",
-	Profile = "rbxassetid://10747373176",
-	Bell = "rbxassetid://10709790537",
-	Search = "rbxassetid://6031154871",
-	Close = "rbxassetid://10747384394",
-	Chevron = "rbxassetid://10709790948",
 }
 
 local TAB_ICON_MAP = {
-	["session"] = LucianUI.Icons.Home,
+	["session"] = LucianUI.Icons.Dashboard,
 	["home"] = LucianUI.Icons.Home,
-	["routine"] = LucianUI.Icons.Routine,
+	["routine"] = LucianUI.Icons.Fishing,
 	["farming"] = LucianUI.Icons.Fishing,
-	["fish"] = LucianUI.Icons.Fishing,
 	["combat"] = LucianUI.Icons.Combat,
-	["sword"] = LucianUI.Icons.Sword,
 	["shop"] = LucianUI.Icons.Shop,
 	["store"] = LucianUI.Icons.Store,
 	["exchange"] = LucianUI.Icons.Exchange,
-	["swap"] = LucianUI.Icons.Exchange,
 	["quests"] = LucianUI.Icons.Quests,
 	["quest"] = LucianUI.Icons.Quests,
 	["upgrade"] = LucianUI.Icons.Upgrade,
 	["teleport"] = LucianUI.Icons.Teleport,
-	["tp"] = LucianUI.Icons.Teleport,
-	["waypoint"] = LucianUI.Icons.Teleport,
 	["settings"] = LucianUI.Icons.Settings,
 	["setting"] = LucianUI.Icons.Settings,
-	["config"] = LucianUI.Icons.Settings,
-	["server hop"] = LucianUI.Icons.ServerHop,
-	["server"] = LucianUI.Icons.ServerHop,
-	["hop"] = LucianUI.Icons.ServerHop,
+	["server hop"] = LucianUI.Icons.Globe,
+	["server"] = LucianUI.Icons.Server,
 	["layers"] = LucianUI.Icons.Layers,
-	["misc"] = LucianUI.Icons.Sliders,
 }
 
 -- Motion parameters
@@ -1029,7 +1033,7 @@ function Element040.new(config: {
 	local logo = Instance.new("Frame")
 	logo.Name = "Logo"
 	logo.Size = UDim2.new(0, 28, 0, 28)
-	logo.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	logo.BackgroundTransparency = 1
 	logo.BorderSizePixel = 0
 	logo.ZIndex = 12
 	logo.Parent = topBar
@@ -1186,7 +1190,7 @@ function Element040.new(config: {
 	avatar.AnchorPoint = Vector2.new(0, 0.5)
 	avatar.Position = UDim2.new(0, 7, 0.5, 0)
 	avatar.Size = UDim2.new(0, 26, 0, 26)
-	avatar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	avatar.BackgroundTransparency = 1
 	avatar.BorderSizePixel = 0
 	avatar.ZIndex = 12
 	avatar.Parent = meCard
