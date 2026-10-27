@@ -46,10 +46,15 @@ end
 
 function StatusToast.Show(config)
     config = config or {}
-    if active then active:Close(true) end
-
     local state = Statuses[config.Status or "success"] or Statuses.success
     local text = config.Text or config.Message or "Loading..."
+    if active then
+        if active._persistent then
+            active:Update(text, config.Status)
+            return active
+        end
+        active:Close(true)
+    end
 
     local gui = Players.LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("NexusStatusToast")
     if gui then gui:Destroy() end
@@ -152,6 +157,7 @@ function StatusToast.Show(config)
 
     local closed = false
     local handle = {}
+    handle._persistent = config.Persistent == true
 
     function handle:Update(nextText, nextStatus)
         if closed then return end
@@ -192,9 +198,11 @@ function StatusToast.Show(config)
         end
     end)
 
-    local dur = config.Duration or 5
-    tween(progress, TweenInfo.new(dur, Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 0, 1) })
-    task.delay(dur, function() handle:Close() end)
+    if not config.Persistent then
+        local dur = config.Duration or 5
+        tween(progress, TweenInfo.new(dur, Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 0, 1) })
+        task.delay(dur, function() handle:Close() end)
+    end
 
     return handle
 end
