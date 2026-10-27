@@ -840,6 +840,8 @@ local function drawN(parent: Instance, customScale: number?, customStep: number?
 	return icon
 end
 
+local NEXUS_2K_ASSET = "rbxassetid://79122933233892"
+
 local function drawNexusMonogram(container: GuiObject, size: number)
 	container:ClearAllChildren()
 
@@ -851,19 +853,27 @@ local function drawNexusMonogram(container: GuiObject, size: number)
 	bg.Parent = container
 
 	local bgCorner = Instance.new("UICorner")
-	bgCorner.CornerRadius = UDim.new(0, math.clamp(math.floor(size * 0.25), 4, 12))
+	bgCorner.CornerRadius = UDim.new(0, math.clamp(math.floor(size * 0.2), 4, 8))
 	bgCorner.Parent = bg
 
 	local bgStroke = Instance.new("UIStroke")
-	bgStroke.Color = Color3.fromRGB(115, 120, 135)
+	bgStroke.Color = Color3.fromRGB(70, 70, 70)
 	bgStroke.Thickness = 1
 	bgStroke.Parent = bg
 
-	drawN(bg, 0.62, 3)
+	local img = Instance.new("ImageLabel")
+	img.Name = "NexusN_2K"
+	img.AnchorPoint = Vector2.new(0.5, 0.5)
+	img.Position = UDim2.fromScale(0.5, 0.5)
+	img.Size = UDim2.fromScale(0.62, 0.62)
+	img.BackgroundTransparency = 1
+	img.Image = NEXUS_2K_ASSET
+	img.ImageColor3 = Color3.fromRGB(255, 255, 255)
+	img.Parent = bg
 end
 
 -- ==============================================================================
--- MOBILE FLOATING TOGGLE BUTTON (MATCHING USER EXACT SPECIFICATION & SHAPE)
+-- MOBILE FLOATING TOGGLE BUTTON (2K RESOLUTION & 4 TIGHT CORNERS)
 -- ==============================================================================
 local function createMobileToggleButton(parentGui: Instance, window)
 	local button = Instance.new("TextButton")
@@ -878,15 +888,23 @@ local function createMobileToggleButton(parentGui: Instance, window)
 	button.Parent = parentGui
 
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 12)
+	corner.CornerRadius = UDim.new(0, 8) -- 4 goc nho lai
 	corner.Parent = button
 
 	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(115, 120, 135)
-	stroke.Thickness = 1.2
+	stroke.Color = Color3.fromRGB(70, 70, 70)
+	stroke.Thickness = 1
 	stroke.Parent = button
 
-	drawN(button, 0.62, 3)
+	local nImage = Instance.new("ImageLabel")
+	nImage.Name = "NexusN_2K"
+	nImage.AnchorPoint = Vector2.new(0.5, 0.5)
+	nImage.Position = UDim2.fromScale(0.5, 0.5)
+	nImage.Size = UDim2.fromScale(0.6, 0.6)
+	nImage.BackgroundTransparency = 1
+	nImage.Image = NEXUS_2K_ASSET
+	nImage.ImageColor3 = Color3.fromRGB(255, 255, 255)
+	nImage.Parent = button
 
 	-- Touch & Mouse Draggable with Edge Snapping
 	local dragging = false
