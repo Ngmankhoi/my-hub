@@ -788,18 +788,18 @@ local NEXUS_POLYGONS = {
 	},
 }
 
-local function drawN(parent: Instance, customStep: number?, customColor: Color3?)
+local function drawN(parent: Instance, customScale: number?, customStep: number?, customColor: Color3?)
 	local icon = Instance.new("Frame")
 	icon.Name = "NexusIcon"
 	icon.AnchorPoint = Vector2.new(0.5, 0.5)
 	icon.Position = UDim2.fromScale(0.5, 0.5)
-	icon.Size = UDim2.fromScale(0.5, 0.5)
+	icon.Size = UDim2.fromScale(customScale or 0.62, customScale or 0.62)
 	icon.BackgroundTransparency = 1
 	icon.Parent = parent
 
-	-- Dựng hình bằng các dải ngang, không phụ thuộc ảnh.
-	local step = customStep or 2
-	local col = customColor or Color3.new(1, 1, 1)
+	-- Dựng hình bằng các dải ngang chuẩn, chống mờ viền subpixel
+	local step = customStep or 3
+	local col = customColor or Color3.fromRGB(255, 255, 255)
 
 	for _, polygon in ipairs(NEXUS_POLYGONS) do
 		for y = 0, 254, step do
@@ -831,7 +831,7 @@ local function drawN(parent: Instance, customStep: number?, customColor: Color3?
 				strip.Position = UDim2.fromScale(left / 256, y / 256)
 				strip.Size = UDim2.fromScale(
 					(right - left) / 256,
-					step / 256
+					(step + 0.7) / 256
 				)
 				strip.Parent = icon
 			end
@@ -855,11 +855,11 @@ local function drawNexusMonogram(container: GuiObject, size: number)
 	bgCorner.Parent = bg
 
 	local bgStroke = Instance.new("UIStroke")
-	bgStroke.Color = Color3.fromRGB(70, 70, 70)
+	bgStroke.Color = Color3.fromRGB(115, 120, 135)
 	bgStroke.Thickness = 1
 	bgStroke.Parent = bg
 
-	drawN(bg)
+	drawN(bg, 0.62, 3)
 end
 
 -- ==============================================================================
@@ -882,11 +882,11 @@ local function createMobileToggleButton(parentGui: Instance, window)
 	corner.Parent = button
 
 	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(70, 70, 70)
-	stroke.Thickness = 1
+	stroke.Color = Color3.fromRGB(115, 120, 135)
+	stroke.Thickness = 1.2
 	stroke.Parent = button
 
-	drawN(button)
+	drawN(button, 0.62, 3)
 
 	-- Touch & Mouse Draggable with Edge Snapping
 	local dragging = false
@@ -2912,12 +2912,16 @@ function Element040:SetVisible(visible: boolean)
 	self.IsOpen = visible
 	if visible then
 		self.Root.Visible = true
-		if self.TabBar and self.TabBar.CurrentIndex == 0 then
+		if self.TabBar then
+			self.TabBar.Root.Visible = true
+			if self.TabBar.CurrentIndex == 0 then
 			self.TabBar:SelectTab(self.CurrentIndex or 1)
 		end
+		end
 	else
-		if self.TabBar and self.TabBar.CurrentIndex ~= 0 then
+		if self.TabBar then
 			self.TabBar:Deselect()
+			self.TabBar.Root.Visible = false
 		end
 		self.Root.Visible = false
 	end
