@@ -769,155 +769,134 @@ function TabBar041:SetIcon(index: number, icon: string)
 	end
 end
 -- ==============================================================================
--- HANDCRAFTED NEXUS EMBLEM & LOGO (ULTRA-CLEAN VECTOR & ICON HYBRID)
+-- EXACT NEXUS VECTOR POLYGON RASTERIZER (256x256 STANDALONE MATHEMATICAL 'N')
 -- ==============================================================================
+local NEXUS_POLYGONS = {
+	{
+		Vector2.new(0, 256), Vector2.new(0, 0),
+		Vector2.new(64, 0), Vector2.new(256, 256),
+		Vector2.new(179.2, 256), Vector2.new(64, 102.4),
+		Vector2.new(64, 256),
+	},
+	{
+		Vector2.new(192, 0), Vector2.new(256, 0),
+		Vector2.new(256, 179.2), Vector2.new(192, 89.6),
+	},
+}
+
+local function drawN(parent: Instance, customStep: number?, customColor: Color3?)
+	local icon = Instance.new("Frame")
+	icon.Name = "NexusIcon"
+	icon.AnchorPoint = Vector2.new(0.5, 0.5)
+	icon.Position = UDim2.fromScale(0.5, 0.5)
+	icon.Size = UDim2.fromScale(0.5, 0.5)
+	icon.BackgroundTransparency = 1
+	icon.Parent = parent
+
+	-- Dựng hình bằng các dải ngang, không phụ thuộc ảnh.
+	local step = customStep or 2
+	local col = customColor or Color3.new(1, 1, 1)
+
+	for _, polygon in ipairs(NEXUS_POLYGONS) do
+		for y = 0, 254, step do
+			local scanY = y + step / 2
+			local intersections = {}
+
+			for i, a in ipairs(polygon) do
+				local b = polygon[i % #polygon + 1]
+
+				if (a.Y <= scanY and b.Y > scanY)
+					or (b.Y <= scanY and a.Y > scanY) then
+					local x = a.X
+						+ (scanY - a.Y) * (b.X - a.X)
+						/ (b.Y - a.Y)
+
+					table.insert(intersections, x)
+				end
+			end
+
+			table.sort(intersections)
+
+			for i = 1, #intersections - 1, 2 do
+				local left = intersections[i]
+				local right = intersections[i + 1]
+
+				local strip = Instance.new("Frame")
+				strip.BorderSizePixel = 0
+				strip.BackgroundColor3 = col
+				strip.Position = UDim2.fromScale(left / 256, y / 256)
+				strip.Size = UDim2.fromScale(
+					(right - left) / 256,
+					step / 256
+				)
+				strip.Parent = icon
+			end
+		end
+	end
+	return icon
+end
+
 local function drawNexusMonogram(container: GuiObject, size: number)
 	container:ClearAllChildren()
 
 	local bg = Instance.new("Frame")
 	bg.Name = "EmblemBg"
 	bg.Size = UDim2.new(1, 0, 1, 0)
-	bg.BackgroundColor3 = Color3.fromRGB(20, 22, 32)
+	bg.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 	bg.BorderSizePixel = 0
 	bg.Parent = container
 
 	local bgCorner = Instance.new("UICorner")
-	bgCorner.CornerRadius = UDim.new(0, math.clamp(math.floor(size * 0.28), 6, 14))
+	bgCorner.CornerRadius = UDim.new(0, math.clamp(math.floor(size * 0.25), 4, 12))
 	bgCorner.Parent = bg
 
 	local bgStroke = Instance.new("UIStroke")
-	bgStroke.Color = Color3.fromRGB(255, 255, 255)
-	bgStroke.Transparency = 0.72
+	bgStroke.Color = Color3.fromRGB(70, 70, 70)
 	bgStroke.Thickness = 1
 	bgStroke.Parent = bg
 
-	local bgGrad = Instance.new("UIGradient")
-	bgGrad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(167, 139, 250)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(56, 189, 248)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(30, 32, 48))
-	})
-	bgGrad.Rotation = 45
-	bgGrad.Parent = bgStroke
-
-	-- Crisp Nexus Infinity / Loop Symbol
-	local emblemImg = Instance.new("ImageLabel")
-	emblemImg.Name = "NexusIcon"
-	emblemImg.AnchorPoint = Vector2.new(0.5, 0.5)
-	emblemImg.Position = UDim2.new(0.5, 0, 0.5, 0)
-	emblemImg.Size = UDim2.new(0.68, 0, 0.68, 0)
-	emblemImg.BackgroundTransparency = 1
-	emblemImg.Image = LucianUI.Icons.NexusEmblem
-	emblemImg.ImageColor3 = Color3.fromRGB(244, 240, 255)
-	emblemImg.ZIndex = 15
-	emblemImg.Parent = bg
+	drawN(bg)
 end
 
 -- ==============================================================================
--- PREMIUM MOBILE FLOATING TOGGLE BUTTON (ULTRA SLEEK FROSTED SQUIRCLE)
+-- MOBILE FLOATING TOGGLE BUTTON (MATCHING USER EXACT SPECIFICATION & SHAPE)
 -- ==============================================================================
 local function createMobileToggleButton(parentGui: Instance, window)
-	local mobFrame = Instance.new("Frame")
-	mobFrame.Name = "NexusMobileToggle"
-	mobFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-	mobFrame.Position = UDim2.new(0, 34, 0.45, 0)
-	mobFrame.Size = UDim2.new(0, 48, 0, 48)
-	mobFrame.BackgroundColor3 = Color3.fromRGB(16, 17, 24)
-	mobFrame.BackgroundTransparency = 0.18
-	mobFrame.BorderSizePixel = 0
-	mobFrame.ZIndex = 100
-	mobFrame.Parent = parentGui
+	local button = Instance.new("TextButton")
+	button.Name = "NexusButton"
+	button.Size = UDim2.fromOffset(48, 48)
+	button.Position = UDim2.new(0, 20, 0.5, -24)
+	button.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+	button.BorderSizePixel = 0
+	button.Text = ""
+	button.AutoButtonColor = false
+	button.ZIndex = 100
+	button.Parent = parentGui
 
-	local mCorner = Instance.new("UICorner")
-	mCorner.CornerRadius = UDim.new(0, 14)
-	mCorner.Parent = mobFrame
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = button
 
-	-- Specular Gradient Border
-	local mStroke = Instance.new("UIStroke")
-	mStroke.Color = Color3.fromRGB(255, 255, 255)
-	mStroke.Transparency = 0.5
-	mStroke.Thickness = 1.3
-	mStroke.Parent = mobFrame
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(70, 70, 70)
+	stroke.Thickness = 1
+	stroke.Parent = button
 
-	local sGrad = Instance.new("UIGradient")
-	sGrad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(167, 139, 250)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(56, 189, 248)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(24, 26, 38))
-	})
-	sGrad.Rotation = 45
-	sGrad.Parent = mStroke
+	drawN(button)
 
-	-- Ambient Soft Halo Glow
-	local halo = Instance.new("Frame")
-	halo.Name = "HaloGlow"
-	halo.AnchorPoint = Vector2.new(0.5, 0.5)
-	halo.Position = UDim2.new(0.5, 0, 0.5, 0)
-	halo.Size = UDim2.new(1, 10, 1, 10)
-	halo.BackgroundColor3 = Color3.fromRGB(139, 108, 255)
-	halo.BackgroundTransparency = 0.88
-	halo.BorderSizePixel = 0
-	halo.ZIndex = 99
-	halo.Parent = mobFrame
-
-	local hCorn = Instance.new("UICorner")
-	hCorn.CornerRadius = UDim.new(0, 18)
-	hCorn.Parent = halo
-
-	-- Center Nexus Emblem
-	local emblemImg = Instance.new("ImageLabel")
-	emblemImg.Name = "Emblem"
-	emblemImg.AnchorPoint = Vector2.new(0.5, 0.5)
-	emblemImg.Position = UDim2.new(0.5, 0, 0.5, 0)
-	emblemImg.Size = UDim2.new(0, 24, 0, 24)
-	emblemImg.BackgroundTransparency = 1
-	emblemImg.Image = LucianUI.Icons.NexusEmblem
-	emblemImg.ImageColor3 = Color3.fromRGB(240, 242, 255)
-	emblemImg.ZIndex = 102
-	emblemImg.Parent = mobFrame
-
-	-- Live Status Beacon (Active emerald dot)
-	local dot = Instance.new("Frame")
-	dot.Name = "StatusDot"
-	dot.AnchorPoint = Vector2.new(0.5, 0.5)
-	dot.Position = UDim2.new(1, -7, 0, 7)
-	dot.Size = UDim2.new(0, 7, 0, 7)
-	dot.BackgroundColor3 = Color3.fromRGB(52, 211, 153)
-	dot.BorderSizePixel = 0
-	dot.ZIndex = 105
-	dot.Parent = mobFrame
-
-	local dCorn = Instance.new("UICorner")
-	dCorn.CornerRadius = UDim.new(1, 0)
-	dCorn.Parent = dot
-
-	local dStrk = Instance.new("UIStroke")
-	dStrk.Color = Color3.fromRGB(16, 17, 24)
-	dStrk.Thickness = 1.2
-	dStrk.Parent = dot
-
-	local hitBtn = Instance.new("TextButton")
-	hitBtn.Name = "ClickTrigger"
-	hitBtn.Size = UDim2.new(1, 0, 1, 0)
-	hitBtn.BackgroundTransparency = 1
-	hitBtn.Text = ""
-	hitBtn.ZIndex = 106
-	hitBtn.Parent = mobFrame
-
-	-- Fluid Dragging with Touch & Mouse + Edge Snap
+	-- Touch & Mouse Draggable with Edge Snapping
 	local dragging = false
 	local dragStart = Vector2.new()
 	local startPos = UDim2.new()
 	local totalMoved = 0
 
-	hitBtn.InputBegan:Connect(function(input)
+	button.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			dragging = true
 			dragStart = input.Position
-			startPos = mobFrame.Position
+			startPos = button.Position
 			totalMoved = 0
-			TweenService:Create(mobFrame, FAST_EASE, { Size = UDim2.new(0, 42, 0, 42) }):Play()
-			TweenService:Create(halo, FAST_EASE, { BackgroundTransparency = 0.75 }):Play()
+			TweenService:Create(button, FAST_EASE, { Size = UDim2.fromOffset(42, 42) }):Play()
 		end
 	end)
 
@@ -925,7 +904,7 @@ local function createMobileToggleButton(parentGui: Instance, window)
 		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 			local delta = input.Position - dragStart
 			totalMoved = totalMoved + delta.Magnitude
-			mobFrame.Position = UDim2.new(
+			button.Position = UDim2.new(
 				startPos.X.Scale,
 				startPos.X.Offset + delta.X,
 				startPos.Y.Scale,
@@ -937,26 +916,24 @@ local function createMobileToggleButton(parentGui: Instance, window)
 	local function onDragEnd()
 		if not dragging then return end
 		dragging = false
-		TweenService:Create(mobFrame, SPRING_BOUNCE, { Size = UDim2.new(0, 48, 0, 48) }):Play()
-		TweenService:Create(halo, FAST_EASE, { BackgroundTransparency = 0.88 }):Play()
+		TweenService:Create(button, SPRING_BOUNCE, { Size = UDim2.fromOffset(48, 48) }):Play()
 
 		if totalMoved < 8 then
 			window:Toggle()
 			local isOpen = window.IsOpen
-			TweenService:Create(mStroke, FAST_EASE, {
-				Color = isOpen and Color3.fromRGB(167, 139, 250) or Color3.fromRGB(255, 255, 255),
-				Transparency = isOpen and 0.25 or 0.65
+			TweenService:Create(stroke, FAST_EASE, {
+				Color = isOpen and Color3.fromRGB(167, 139, 250) or Color3.fromRGB(70, 70, 70)
 			}):Play()
 		else
 			local cam = workspace.CurrentCamera
 			local viewportWidth = cam and cam.ViewportSize.X or 800
-			local curAbsX = mobFrame.AbsolutePosition.X
-			local snapX = 34
+			local curAbsX = button.AbsolutePosition.X
+			local snapX = 20
 			if curAbsX > viewportWidth / 2 then
-				snapX = viewportWidth - 34
+				snapX = viewportWidth - 68
 			end
-			TweenService:Create(mobFrame, SPRING_BOUNCE, {
-				Position = UDim2.new(0, snapX, mobFrame.Position.Y.Scale, mobFrame.Position.Y.Offset)
+			TweenService:Create(button, SPRING_BOUNCE, {
+				Position = UDim2.new(0, snapX, button.Position.Y.Scale, button.Position.Y.Offset)
 			}):Play()
 		end
 	end
@@ -967,7 +944,7 @@ local function createMobileToggleButton(parentGui: Instance, window)
 		end
 	end)
 
-	return mobFrame
+	return button
 end
 -- ==============================================================================
 -- ELEMENT #040: COMPACT LUMEN RAIL NAVIGATION & MAIN CONTENT INTERFACE
