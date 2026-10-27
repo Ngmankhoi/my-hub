@@ -142,7 +142,7 @@ LucianUI.Icons = {
 	Shield = "rbxassetid://110987169760162",        -- Lucide shield
 	Check = "rbxassetid://93898873302694",          -- Lucide check
 	Close = "rbxassetid://110786993356448",         -- Lucide x
-	Chevron = "rbxassetid://132318504999733",       -- Lucide chevron
+	Chevron = "rbxassetid://136188197552572",       -- Lucide chevron
 	Flame = "rbxassetid://98218034436456",          -- Lucide flame
 	Crown = "rbxassetid://127843403295538",         -- Lucide crown
 	Trophy = "rbxassetid://131545003268773",        -- Lucide trophy
@@ -1010,7 +1010,7 @@ function Element040.new(config: {
 	local container = Instance.new("Frame")
 	container.Name = "Lucian040_Root"
 	container.AnchorPoint = Vector2.new(0.5, 0.5)
-	container.Position = UDim2.new(0.5, 0, 0.38, 0)
+	container.Position = UDim2.new(0.5, 0, 0.5, 0)
 	container.Size = UDim2.new(0, self.Width, 0, self.Height)
 	container.BackgroundTransparency = 1
 	container.Parent = screenGui
@@ -1099,14 +1099,14 @@ function Element040.new(config: {
 	brandName.Parent = topBar
 	self.BrandName = brandName
 
-	-- Expand/Collapse Toggle Button (.u040-tog)
+	-- Expand/Collapse Toggle Button (.u040-tog) matching exact reference image
 	local togBtn = Instance.new("TextButton")
 	togBtn.Name = "ExpandToggle"
 	togBtn.AnchorPoint = Vector2.new(1, 0)
-	togBtn.Position = UDim2.new(1, 0, 0, 12)
-	togBtn.Size = UDim2.new(0, 24, 0, 28)
-	togBtn.BackgroundColor3 = Color3.fromRGB(244, 242, 238)
-	togBtn.BackgroundTransparency = 0.88
+	togBtn.Position = UDim2.new(1, -2, 0, 14)
+	togBtn.Size = UDim2.new(0, 20, 0, 26)
+	togBtn.BackgroundColor3 = Color3.fromRGB(38, 40, 50)
+	togBtn.BackgroundTransparency = 0
 	togBtn.BorderSizePixel = 0
 	togBtn.Text = ""
 	togBtn.AutoButtonColor = false
@@ -1115,8 +1115,14 @@ function Element040.new(config: {
 	self.TogBtn = togBtn
 
 	local tCorner = Instance.new("UICorner")
-	tCorner.CornerRadius = UDim.new(0, 8)
+	tCorner.CornerRadius = UDim.new(0, 6)
 	tCorner.Parent = togBtn
+
+	local tStroke = Instance.new("UIStroke")
+	tStroke.Color = Color3.fromRGB(65, 68, 82)
+	tStroke.Transparency = 0.3
+	tStroke.Thickness = 1
+	tStroke.Parent = togBtn
 
 	local togIcon = Instance.new("ImageLabel")
 	togIcon.Name = "Chevron"
@@ -1125,8 +1131,8 @@ function Element040.new(config: {
 	togIcon.Size = UDim2.new(0, 12, 0, 12)
 	togIcon.BackgroundTransparency = 1
 	togIcon.Image = LucianUI.Icons.Chevron
-	togIcon.ImageColor3 = Color3.fromRGB(244, 240, 232)
-	togIcon.Rotation = -90
+	togIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+	togIcon.Rotation = 0
 	togIcon.ZIndex = 16
 	togIcon.Parent = togBtn
 	self.TogIcon = togIcon
@@ -1373,7 +1379,7 @@ function Element040.new(config: {
 	local function toggleWide()
 		self.IsWide = not self.IsWide
 		local targetRailWidth = self.IsWide and 150 or 56
-		local rot = self.IsWide and 90 or -90
+		local rot = self.IsWide and 180 or 0
 		local alpha = self.IsWide and 0 or 1
 
 		TweenService:Create(rail, SPRING_BOUNCE, { Size = UDim2.new(0, targetRailWidth, 1, 0) }):Play()
@@ -1959,7 +1965,7 @@ function Element040:CreateTab(nameOrConfig: any)
 		arr.BackgroundTransparency = 1
 		arr.Image = LucianUI.Icons.Chevron
 		arr.ImageColor3 = self.Window.Theme.Ink3
-		arr.Rotation = -90
+		arr.Rotation = 0
 		arr.Parent = blk
 
 		local hitBtn = Instance.new("TextButton")
@@ -2210,7 +2216,7 @@ function Element040:CreateTab(nameOrConfig: any)
 		arr.BackgroundTransparency = 1
 		arr.Image = LucianUI.Icons.Chevron
 		arr.ImageColor3 = self.Window.Theme.Ink3
-		arr.Rotation = 180
+		arr.Rotation = 90
 		arr.Parent = topBtn
 
 		local optContainer = Instance.new("Frame")
@@ -2263,7 +2269,7 @@ function Element040:CreateTab(nameOrConfig: any)
 			optBtn.MouseButton1Click:Connect(function()
 				selectOption(optName, true)
 				expanded = false
-				TweenService:Create(arr, FAST_EASE, { Rotation = 180 }):Play()
+				TweenService:Create(arr, FAST_EASE, { Rotation = 90 }):Play()
 				TweenService:Create(container, FAST_EASE, { Size = UDim2.new(1, 0, 0, rowHeight) }):Play()
 			end)
 		end
@@ -2271,7 +2277,7 @@ function Element040:CreateTab(nameOrConfig: any)
 		topBtn.MouseButton1Click:Connect(function()
 			expanded = not expanded
 			local targetH = expanded and (rowHeight + #options * optHeight) or rowHeight
-			local targetRot = expanded and 0 or 180
+			local targetRot = expanded and -90 or 90
 			TweenService:Create(arr, FAST_EASE, { Rotation = targetRot }):Play()
 			TweenService:Create(container, FAST_EASE, { Size = UDim2.new(1, 0, 0, targetH) }):Play()
 		end)
@@ -2367,7 +2373,7 @@ function Element040:CreateTab(nameOrConfig: any)
 		arr.BackgroundTransparency = 1
 		arr.Image = LucianUI.Icons.Chevron
 		arr.ImageColor3 = self.Window.Theme.Ink3
-		arr.Rotation = 180
+		arr.Rotation = 90
 		arr.Parent = topBtn
 
 		local optContainer = Instance.new("Frame")
@@ -2458,7 +2464,7 @@ function Element040:CreateTab(nameOrConfig: any)
 		topBtn.MouseButton1Click:Connect(function()
 			expanded = not expanded
 			local targetH = expanded and (rowHeight + #options * optHeight) or rowHeight
-			local targetRot = expanded and 0 or 180
+			local targetRot = expanded and -90 or 90
 			TweenService:Create(arr, FAST_EASE, { Rotation = targetRot }):Play()
 			TweenService:Create(container, FAST_EASE, { Size = UDim2.new(1, 0, 0, targetH) }):Play()
 		end)
@@ -2930,14 +2936,14 @@ function Element040:SetVisible(visible: boolean)
 	self.IsOpen = visible
 	if visible then
 		self.Root.Visible = true
-		if self.TabBar then
+		if self.TabBar and self.TabBar.Root then
 			self.TabBar.Root.Visible = true
 			if self.TabBar.CurrentIndex == 0 then
-			self.TabBar:SelectTab(self.CurrentIndex or 1)
-		end
+				self.TabBar:SelectTab(self.CurrentIndex or 1)
+			end
 		end
 	else
-		if self.TabBar then
+		if self.TabBar and self.TabBar.Root then
 			self.TabBar:Deselect()
 			self.TabBar.Root.Visible = false
 		end
@@ -2970,25 +2976,18 @@ function LucianUI:CreateWindow(config: any)
 	config = config or {}
 	local window040 = Element040.new(config)
 
-	-- Build Element #041 Bottom Bar docked at screen bottom
-	local tabBar041 = TabBar041.new({
-		Parent = window040.ScreenGui,
-		ThemeName = window040.ThemeName,
-		Width = 420,
-		Height = 60,
-		Tabs = {},
-		OnSelect = function(idx)
-			if not window040.IsOpen then
-				window040:SetVisible(true)
-			end
-			window040:SelectTab(idx)
-		end,
-		OnActiveClick = function(idx)
-			window040:SetVisible(false)
-		end
-	})
-
-	window040.TabBar = tabBar041
+	-- Bottom TabBar completely removed as requested
+	window040.TabBar = {
+		TabsData = {},
+		CurrentIndex = 0,
+		SelectTab = function() end,
+		Deselect = function() end,
+		SetBadge = function() end,
+		SetTitle = function() end,
+		SetIcon = function() end,
+		RebuildTabs = function() end,
+		Destroy = function() end,
+	}
 
 	-- Mobile Floating Draggable Toggle Button
 	if config.MobileButton ~= false then
