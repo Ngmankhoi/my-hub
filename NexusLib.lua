@@ -100,72 +100,69 @@ local function getUIFont(weight: "Regular" | "Medium" | "Bold" | "SemiBold"): En
 	end
 end
 
--- Verified 100% Authentic Lucide Icons on Roblox
+-- Verified 100% Authentic Lucide Icons on Roblox (Universal 10-digit IDs)
 LucianUI.Icons = {
-	Home = "rbxassetid://98755624629571",           -- Lucide house
-	Dashboard = "rbxassetid://139929981863901",     -- Lucide layout-dashboard
-	Activity = "rbxassetid://94212016861936",       -- Lucide activity
-	Fishing = "rbxassetid://71754848048049",        -- Lucide fishing-rod
-	Fish = "rbxassetid://124360663785796",          -- Lucide fish
-	Bot = "rbxassetid://80451686744860",            -- Lucide bot
-	Combat = "rbxassetid://81872698913435",         -- Lucide swords
-	Sword = "rbxassetid://124448418211665",         -- Lucide sword
-	Play = "rbxassetid://135609604299893",          -- Lucide play
-	Shop = "rbxassetid://128420521375441",          -- Lucide shopping-cart
-	Store = "rbxassetid://90338129673705",          -- Lucide store
-	Bag = "rbxassetid://71885477293226",            -- Lucide shopping-bag
-	Exchange = "rbxassetid://131324733048447",      -- Lucide arrow-left-right
-	Refresh = "rbxassetid://138133190015277",       -- Lucide refresh-cw
-	Repeat = "rbxassetid://121886242955173",        -- Lucide repeat
-	Coins = "rbxassetid://116510979641930",         -- Lucide coins
-	Gem = "rbxassetid://112904952151156",           -- Lucide gem
-	Quests = "rbxassetid://92649798577170",         -- Lucide clipboard-check
-	Scroll = "rbxassetid://74072101474951",         -- Lucide scroll
-	TodoList = "rbxassetid://132980603752108",      -- Lucide list-todo
-	Upgrade = "rbxassetid://81819858538839",        -- Lucide trending-up
-	Zap = "rbxassetid://130551565616516",           -- Lucide zap
-	Sparkles = "rbxassetid://138635884129147",      -- Lucide sparkles
-	Teleport = "rbxassetid://84279202219901",       -- Lucide map-pin
-	Compass = "rbxassetid://115123411028382",       -- Lucide compass
-	Navigation = "rbxassetid://79308213542922",     -- Lucide navigation
-	Send = "rbxassetid://127751956873796",          -- Lucide send
-	Settings = "rbxassetid://80758916183665",       -- Lucide settings gear
-	Sliders = "rbxassetid://85538382643347",        -- Lucide sliders-horizontal
-	Server = "rbxassetid://92188766517878",         -- Lucide server
-	Globe = "rbxassetid://114238209622913",         -- Lucide globe
-	Radio = "rbxassetid://85611589536956",          -- Lucide radio
-	Layers = "rbxassetid://81973586053257",         -- Lucide layers
-	User = "rbxassetid://81589895647169",           -- Lucide user
-	Profile = "rbxassetid://81589895647169",        -- Lucide user
-	Bell = "rbxassetid://97392696311902",           -- Lucide bell
-	Search = "rbxassetid://121018724060431",        -- Lucide search
-	Shield = "rbxassetid://110987169760162",        -- Lucide shield
-	Check = "rbxassetid://93898873302694",          -- Lucide check
-	Close = "rbxassetid://110786993356448",         -- Lucide x
-	Chevron = "rbxassetid://132318504999733",       -- Lucide chevron
-	Flame = "rbxassetid://98218034436456",          -- Lucide flame
-	Crown = "rbxassetid://127843403295538",         -- Lucide crown
-	Trophy = "rbxassetid://131545003268773",        -- Lucide trophy
+	Home = "rbxassetid://10723407389",
+	Dashboard = "rbxassetid://10723407389",
+	Routine = "rbxassetid://10723376114",
+	Fishing = "rbxassetid://10723376114",
+	Flame = "rbxassetid://10723376114",
+	Combat = "rbxassetid://10734952036",
+	Sword = "rbxassetid://10734952036",
+	Shop = "rbxassetid://10723345518",
+	Store = "rbxassetid://10723345518",
+	Grid = "rbxassetid://10723345518",
+	Exchange = "rbxassetid://10709791281",
+	Swap = "rbxassetid://10709791281",
+	Quests = "rbxassetid://10709790757",
+	Check = "rbxassetid://10709790757",
+	Upgrade = "rbxassetid://10734952479",
+	Zap = "rbxassetid://10734952479",
+	Teleport = "rbxassetid://10734906744",
+	Navigation = "rbxassetid://10734906744",
+	Compass = "rbxassetid://10723346959",
+	ServerHop = "rbxassetid://10723346959",
+	Globe = "rbxassetid://10723346959",
+	Settings = "rbxassetid://10734950309",
+	Sliders = "rbxassetid://10734951847",
+	Layers = "rbxassetid://10723377626",
+	Infinity = "rbxassetid://10723415766",
+	NexusEmblem = "rbxassetid://10723415766",
+	Shield = "rbxassetid://10734950813",
+	User = "rbxassetid://10747373176",
+	Profile = "rbxassetid://10747373176",
+	Bell = "rbxassetid://10709790537",
+	Search = "rbxassetid://6031154871",
+	Close = "rbxassetid://10747384394",
+	Chevron = "rbxassetid://10709790948",
 }
 
 local TAB_ICON_MAP = {
-	["session"] = LucianUI.Icons.Dashboard,
+	["session"] = LucianUI.Icons.Home,
 	["home"] = LucianUI.Icons.Home,
-	["routine"] = LucianUI.Icons.Fishing,
+	["routine"] = LucianUI.Icons.Routine,
 	["farming"] = LucianUI.Icons.Fishing,
+	["fish"] = LucianUI.Icons.Fishing,
 	["combat"] = LucianUI.Icons.Combat,
+	["sword"] = LucianUI.Icons.Sword,
 	["shop"] = LucianUI.Icons.Shop,
 	["store"] = LucianUI.Icons.Store,
 	["exchange"] = LucianUI.Icons.Exchange,
+	["swap"] = LucianUI.Icons.Exchange,
 	["quests"] = LucianUI.Icons.Quests,
 	["quest"] = LucianUI.Icons.Quests,
 	["upgrade"] = LucianUI.Icons.Upgrade,
 	["teleport"] = LucianUI.Icons.Teleport,
+	["tp"] = LucianUI.Icons.Teleport,
+	["waypoint"] = LucianUI.Icons.Teleport,
 	["settings"] = LucianUI.Icons.Settings,
 	["setting"] = LucianUI.Icons.Settings,
-	["server hop"] = LucianUI.Icons.Globe,
-	["server"] = LucianUI.Icons.Server,
+	["config"] = LucianUI.Icons.Settings,
+	["server hop"] = LucianUI.Icons.ServerHop,
+	["server"] = LucianUI.Icons.ServerHop,
+	["hop"] = LucianUI.Icons.ServerHop,
 	["layers"] = LucianUI.Icons.Layers,
+	["misc"] = LucianUI.Icons.Sliders,
 }
 
 -- Motion parameters
@@ -772,145 +769,142 @@ function TabBar041:SetIcon(index: number, icon: string)
 	end
 end
 -- ==============================================================================
--- HANDCRAFTED NEXUS VECTOR MONOGRAM & EMBLEM (100% NON-AI)
+-- HANDCRAFTED NEXUS EMBLEM & LOGO (ULTRA-CLEAN VECTOR & ICON HYBRID)
 -- ==============================================================================
 local function drawNexusMonogram(container: GuiObject, size: number)
 	container:ClearAllChildren()
 
 	local bg = Instance.new("Frame")
-	bg.Name = "MonogramBg"
+	bg.Name = "EmblemBg"
 	bg.Size = UDim2.new(1, 0, 1, 0)
-	bg.BackgroundColor3 = Color3.fromRGB(24, 26, 36)
+	bg.BackgroundColor3 = Color3.fromRGB(20, 22, 32)
 	bg.BorderSizePixel = 0
 	bg.Parent = container
 
 	local bgCorner = Instance.new("UICorner")
-	bgCorner.CornerRadius = UDim.new(0.3, 0)
+	bgCorner.CornerRadius = UDim.new(0, math.clamp(math.floor(size * 0.28), 6, 14))
 	bgCorner.Parent = bg
 
 	local bgStroke = Instance.new("UIStroke")
 	bgStroke.Color = Color3.fromRGB(255, 255, 255)
-	bgStroke.Transparency = 0.8
+	bgStroke.Transparency = 0.72
 	bgStroke.Thickness = 1
 	bgStroke.Parent = bg
 
 	local bgGrad = Instance.new("UIGradient")
 	bgGrad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(139, 108, 255)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(91, 140, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(44, 212, 178))
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(167, 139, 250)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(56, 189, 248)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(30, 32, 48))
 	})
 	bgGrad.Rotation = 45
 	bgGrad.Parent = bgStroke
 
-	-- Stylized Geometric "N" Monogram
-	local nWrap = Instance.new("Frame")
-	nWrap.Name = "N_Glyph"
-	nWrap.AnchorPoint = Vector2.new(0.5, 0.5)
-	nWrap.Position = UDim2.new(0.5, 0, 0.5, 0)
-	nWrap.Size = UDim2.new(0.55, 0, 0.6, 0)
-	nWrap.BackgroundTransparency = 1
-	nWrap.Parent = bg
-
-	local scale = size / 30
-	local barW = math.max(2, math.floor(2.8 * scale))
-
-	-- Left vertical stem
-	local leftBar = Instance.new("Frame")
-	leftBar.Name = "LeftStem"
-	leftBar.AnchorPoint = Vector2.new(0, 0.5)
-	leftBar.Position = UDim2.new(0, 0, 0.5, 0)
-	leftBar.Size = UDim2.new(0, barW, 1, 0)
-	leftBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	leftBar.BorderSizePixel = 0
-	leftBar.Parent = nWrap
-	local lCorner = Instance.new("UICorner")
-	lCorner.CornerRadius = UDim.new(1, 0)
-	lCorner.Parent = leftBar
-
-	-- Right vertical stem
-	local rightBar = Instance.new("Frame")
-	rightBar.Name = "RightStem"
-	rightBar.AnchorPoint = Vector2.new(1, 0.5)
-	rightBar.Position = UDim2.new(1, 0, 0.5, 0)
-	rightBar.Size = UDim2.new(0, barW, 1, 0)
-	rightBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	rightBar.BorderSizePixel = 0
-	rightBar.Parent = nWrap
-	local rCorner = Instance.new("UICorner")
-	rCorner.CornerRadius = UDim.new(1, 0)
-	rCorner.Parent = rightBar
-
-	-- Diagonal connecting slash
-	local diagBar = Instance.new("Frame")
-	diagBar.Name = "DiagonalSlash"
-	diagBar.AnchorPoint = Vector2.new(0.5, 0.5)
-	diagBar.Position = UDim2.new(0.5, 0, 0.5, 0)
-	diagBar.Size = UDim2.new(0, barW, 1.15, 0)
-	diagBar.Rotation = -33
-	diagBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	diagBar.BorderSizePixel = 0
-	diagBar.Parent = nWrap
-	local dCorner = Instance.new("UICorner")
-	dCorner.CornerRadius = UDim.new(1, 0)
-	dCorner.Parent = diagBar
-
-	-- Gradient on the N glyph
-	local glyphGrad = Instance.new("UIGradient")
-	glyphGrad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 150, 255)),
-		ColorSequenceKeypoint.new(0.6, Color3.fromRGB(110, 180, 255)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(70, 240, 210))
-	})
-	glyphGrad.Rotation = 45
-	glyphGrad.Parent = nWrap
+	-- Crisp Nexus Infinity / Loop Symbol
+	local emblemImg = Instance.new("ImageLabel")
+	emblemImg.Name = "NexusIcon"
+	emblemImg.AnchorPoint = Vector2.new(0.5, 0.5)
+	emblemImg.Position = UDim2.new(0.5, 0, 0.5, 0)
+	emblemImg.Size = UDim2.new(0.68, 0, 0.68, 0)
+	emblemImg.BackgroundTransparency = 1
+	emblemImg.Image = LucianUI.Icons.NexusEmblem
+	emblemImg.ImageColor3 = Color3.fromRGB(244, 240, 255)
+	emblemImg.ZIndex = 15
+	emblemImg.Parent = bg
 end
 
 -- ==============================================================================
--- MOBILE FLOATING DRAGGABLE TOGGLE BUTTON (WITH EDGE SNAPPING)
+-- PREMIUM MOBILE FLOATING TOGGLE BUTTON (ULTRA SLEEK FROSTED SQUIRCLE)
 -- ==============================================================================
 local function createMobileToggleButton(parentGui: Instance, window)
 	local mobFrame = Instance.new("Frame")
 	mobFrame.Name = "NexusMobileToggle"
 	mobFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-	mobFrame.Position = UDim2.new(0, 32, 0.45, 0)
+	mobFrame.Position = UDim2.new(0, 34, 0.45, 0)
 	mobFrame.Size = UDim2.new(0, 48, 0, 48)
-	mobFrame.BackgroundColor3 = window.Theme.Surface
-	mobFrame.BackgroundTransparency = 0.15
+	mobFrame.BackgroundColor3 = Color3.fromRGB(16, 17, 24)
+	mobFrame.BackgroundTransparency = 0.18
 	mobFrame.BorderSizePixel = 0
 	mobFrame.ZIndex = 100
 	mobFrame.Parent = parentGui
 
 	local mCorner = Instance.new("UICorner")
-	mCorner.CornerRadius = UDim.new(1, 0)
+	mCorner.CornerRadius = UDim.new(0, 14)
 	mCorner.Parent = mobFrame
 
+	-- Specular Gradient Border
 	local mStroke = Instance.new("UIStroke")
-	mStroke.Color = window.Theme.Accent
-	mStroke.Transparency = 0.55
-	mStroke.Thickness = 1.4
+	mStroke.Color = Color3.fromRGB(255, 255, 255)
+	mStroke.Transparency = 0.5
+	mStroke.Thickness = 1.3
 	mStroke.Parent = mobFrame
 
-	local iconContainer = Instance.new("Frame")
-	iconContainer.Name = "Emblem"
-	iconContainer.AnchorPoint = Vector2.new(0.5, 0.5)
-	iconContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
-	iconContainer.Size = UDim2.new(0, 32, 0, 32)
-	iconContainer.BackgroundTransparency = 1
-	iconContainer.ZIndex = 101
-	iconContainer.Parent = mobFrame
+	local sGrad = Instance.new("UIGradient")
+	sGrad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(167, 139, 250)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(56, 189, 248)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(24, 26, 38))
+	})
+	sGrad.Rotation = 45
+	sGrad.Parent = mStroke
 
-	drawNexusMonogram(iconContainer, 32)
+	-- Ambient Soft Halo Glow
+	local halo = Instance.new("Frame")
+	halo.Name = "HaloGlow"
+	halo.AnchorPoint = Vector2.new(0.5, 0.5)
+	halo.Position = UDim2.new(0.5, 0, 0.5, 0)
+	halo.Size = UDim2.new(1, 10, 1, 10)
+	halo.BackgroundColor3 = Color3.fromRGB(139, 108, 255)
+	halo.BackgroundTransparency = 0.88
+	halo.BorderSizePixel = 0
+	halo.ZIndex = 99
+	halo.Parent = mobFrame
+
+	local hCorn = Instance.new("UICorner")
+	hCorn.CornerRadius = UDim.new(0, 18)
+	hCorn.Parent = halo
+
+	-- Center Nexus Emblem
+	local emblemImg = Instance.new("ImageLabel")
+	emblemImg.Name = "Emblem"
+	emblemImg.AnchorPoint = Vector2.new(0.5, 0.5)
+	emblemImg.Position = UDim2.new(0.5, 0, 0.5, 0)
+	emblemImg.Size = UDim2.new(0, 24, 0, 24)
+	emblemImg.BackgroundTransparency = 1
+	emblemImg.Image = LucianUI.Icons.NexusEmblem
+	emblemImg.ImageColor3 = Color3.fromRGB(240, 242, 255)
+	emblemImg.ZIndex = 102
+	emblemImg.Parent = mobFrame
+
+	-- Live Status Beacon (Active emerald dot)
+	local dot = Instance.new("Frame")
+	dot.Name = "StatusDot"
+	dot.AnchorPoint = Vector2.new(0.5, 0.5)
+	dot.Position = UDim2.new(1, -7, 0, 7)
+	dot.Size = UDim2.new(0, 7, 0, 7)
+	dot.BackgroundColor3 = Color3.fromRGB(52, 211, 153)
+	dot.BorderSizePixel = 0
+	dot.ZIndex = 105
+	dot.Parent = mobFrame
+
+	local dCorn = Instance.new("UICorner")
+	dCorn.CornerRadius = UDim.new(1, 0)
+	dCorn.Parent = dot
+
+	local dStrk = Instance.new("UIStroke")
+	dStrk.Color = Color3.fromRGB(16, 17, 24)
+	dStrk.Thickness = 1.2
+	dStrk.Parent = dot
 
 	local hitBtn = Instance.new("TextButton")
 	hitBtn.Name = "ClickTrigger"
 	hitBtn.Size = UDim2.new(1, 0, 1, 0)
 	hitBtn.BackgroundTransparency = 1
 	hitBtn.Text = ""
-	hitBtn.ZIndex = 105
+	hitBtn.ZIndex = 106
 	hitBtn.Parent = mobFrame
 
-	-- Touch & Mouse Draggable with Edge Snapping
+	-- Fluid Dragging with Touch & Mouse + Edge Snap
 	local dragging = false
 	local dragStart = Vector2.new()
 	local startPos = UDim2.new()
@@ -923,6 +917,7 @@ local function createMobileToggleButton(parentGui: Instance, window)
 			startPos = mobFrame.Position
 			totalMoved = 0
 			TweenService:Create(mobFrame, FAST_EASE, { Size = UDim2.new(0, 42, 0, 42) }):Play()
+			TweenService:Create(halo, FAST_EASE, { BackgroundTransparency = 0.75 }):Play()
 		end
 	end)
 
@@ -943,21 +938,22 @@ local function createMobileToggleButton(parentGui: Instance, window)
 		if not dragging then return end
 		dragging = false
 		TweenService:Create(mobFrame, SPRING_BOUNCE, { Size = UDim2.new(0, 48, 0, 48) }):Play()
+		TweenService:Create(halo, FAST_EASE, { BackgroundTransparency = 0.88 }):Play()
 
 		if totalMoved < 8 then
 			window:Toggle()
 			local isOpen = window.IsOpen
 			TweenService:Create(mStroke, FAST_EASE, {
-				Color = isOpen and window.Theme.Accent or Color3.fromRGB(255, 255, 255),
-				Transparency = isOpen and 0.2 or 0.7
+				Color = isOpen and Color3.fromRGB(167, 139, 250) or Color3.fromRGB(255, 255, 255),
+				Transparency = isOpen and 0.25 or 0.65
 			}):Play()
 		else
 			local cam = workspace.CurrentCamera
 			local viewportWidth = cam and cam.ViewportSize.X or 800
 			local curAbsX = mobFrame.AbsolutePosition.X
-			local snapX = 32
+			local snapX = 34
 			if curAbsX > viewportWidth / 2 then
-				snapX = viewportWidth - 32
+				snapX = viewportWidth - 34
 			end
 			TweenService:Create(mobFrame, SPRING_BOUNCE, {
 				Position = UDim2.new(0, snapX, mobFrame.Position.Y.Scale, mobFrame.Position.Y.Offset)
@@ -973,7 +969,6 @@ local function createMobileToggleButton(parentGui: Instance, window)
 
 	return mobFrame
 end
-
 -- ==============================================================================
 -- ELEMENT #040: COMPACT LUMEN RAIL NAVIGATION & MAIN CONTENT INTERFACE
 -- ==============================================================================
@@ -1415,12 +1410,24 @@ function Element040:CreateTab(nameOrConfig: any)
 
 	if type(nameOrConfig) == "table" then
 		tabTitle = tostring(nameOrConfig.Title or nameOrConfig.Name or "Tab")
-		tabIcon = nameOrConfig.Icon or TAB_ICON_MAP[string.lower(tabTitle)] or LucianUI.Icons.Grid
 		tabBadge = nameOrConfig.Badge
+		if nameOrConfig.Icon and nameOrConfig.Icon ~= "" then
+			tabIcon = nameOrConfig.Icon
+		end
 	else
 		tabTitle = tostring(nameOrConfig or "Tab")
-		tabIcon = TAB_ICON_MAP[string.lower(tabTitle)] or LucianUI.Icons.Grid
 		tabBadge = nil
+	end
+
+	if not tabIcon or tabIcon == "" then
+		local lower = string.lower(tabTitle)
+		for key, iconId in pairs(TAB_ICON_MAP) do
+			if string.find(lower, key, 1, true) then
+				tabIcon = iconId
+				break
+			end
+		end
+		tabIcon = tabIcon or LucianUI.Icons.Grid
 	end
 
 	local index = #self.Tabs + 1
