@@ -1794,6 +1794,11 @@ function Element040:CreateTab(nameOrConfig: any)
 			CreateTextbox = function(_, cfg) return self:CreateTextbox(cfg) end,
 			CreateLabel = function(_, text) return self:CreateLabel(text) end,
 			CreateKeybind = function(_, cfg) return self:CreateKeybind(cfg) end,
+			CreateCardGroup = function(_, cfg) return self:CreateCardGroup(cfg) end,
+			CreateActionRow = function(_, cfg) return self:CreateActionRow(cfg) end,
+			CreateBlock = function(_, cfg) return self:CreateBlock(cfg) end,
+			CreateFeaturedCard = function(_, cfg) return self:CreateFeaturedCard(cfg) end,
+			CreateStatRow = function(_, cfg) return self:CreateStatRow(cfg) end,
 		}
 
 		return sectionObj
@@ -1880,6 +1885,10 @@ function Element040:CreateTab(nameOrConfig: any)
 				return state
 			end,
 			Set = function(selfOrVal, maybeVal, emit)
+				local v = (maybeVal ~= nil) and maybeVal or selfOrVal
+				set(v == true, emit ~= false)
+			end,
+			SetValue = function(selfOrVal, maybeVal, emit)
 				local v = (maybeVal ~= nil) and maybeVal or selfOrVal
 				set(v == true, emit ~= false)
 			end
@@ -2097,6 +2106,17 @@ function Element040:CreateTab(nameOrConfig: any)
 				if emit and sConfig.Callback then
 					task.spawn(sConfig.Callback, currentVal)
 				end
+			end,
+			SetValue = function(selfOrVal, maybeVal, emit)
+				local v = tonumber(maybeVal ~= nil and maybeVal or selfOrVal) or minVal
+				currentVal = math.clamp(v, minVal, maxVal)
+				local finalFrac = range > 0 and math.clamp((currentVal - minVal) / range, 0, 1) or 0
+				fill.Size = UDim2.new(finalFrac, 0, 1, 0)
+				knob.Position = UDim2.new(finalFrac, 0, 0.5, 0)
+				vLabel.Text = tostring(currentVal) .. suffix
+				if emit and sConfig.Callback then
+					task.spawn(sConfig.Callback, currentVal)
+				end
 			end
 		}
 
@@ -2240,6 +2260,10 @@ function Element040:CreateTab(nameOrConfig: any)
 				return selected
 			end,
 			Set = function(selfOrVal, maybeVal, emit)
+				local v = maybeVal ~= nil and maybeVal or selfOrVal
+				selectOption(v, emit ~= false)
+			end,
+			SetValue = function(selfOrVal, maybeVal, emit)
 				local v = maybeVal ~= nil and maybeVal or selfOrVal
 				selectOption(v, emit ~= false)
 			end
@@ -2434,6 +2458,19 @@ function Element040:CreateTab(nameOrConfig: any)
 				if emit and mConfig.Callback then
 					task.spawn(mConfig.Callback, selectedList)
 				end
+			end,
+			SetValue = function(selfOrVals, maybeVals, emit)
+				local vals = type(selfOrVals) == "table" and not maybeVals and selfOrVals or maybeVals or {}
+				selectedMap = {}
+				selectedList = {}
+				for _, opt in ipairs(vals) do
+					selectedMap[opt] = true
+					table.insert(selectedList, opt)
+				end
+				updateSummary()
+				if emit and mConfig.Callback then
+					task.spawn(mConfig.Callback, selectedList)
+				end
 			end
 		}
 
@@ -2507,6 +2544,10 @@ function Element040:CreateTab(nameOrConfig: any)
 			Set = function(selfOrVal, maybeVal)
 				local v = tostring(maybeVal ~= nil and maybeVal or selfOrVal or "")
 				tb.Text = v
+			end,
+			SetValue = function(selfOrVal, maybeVal)
+				local v = tostring(maybeVal ~= nil and maybeVal or selfOrVal or "")
+				tb.Text = v
 			end
 		}
 
@@ -2543,6 +2584,10 @@ function Element040:CreateTab(nameOrConfig: any)
 		local handle = {
 			_frame = lblFrame,
 			Set = function(selfOrText, maybeText)
+				local newTxt = tostring(maybeText ~= nil and maybeText or selfOrText or "")
+				lt.Text = newTxt
+			end,
+			SetValue = function(selfOrText, maybeText)
 				local newTxt = tostring(maybeText ~= nil and maybeText or selfOrText or "")
 				lt.Text = newTxt
 			end
