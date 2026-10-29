@@ -558,7 +558,8 @@ function NexusLib:PlayInkIntro(callback)
 end
 
 function NexusLib:PlayIntro(callback)
-    return NexusLib:PlayInkIntro(callback)
+    _G.NexusLib = NexusLib
+return NexusLib:PlayInkIntro(callback)
 end
 
 --------------------------------------------------------------------------
@@ -597,28 +598,47 @@ function NexusLib:CreateDynamicIsland(config)
         Parent = Island,
     })
 
-    Logo(Bar, {
-        Position = UDim2.new(0, 12, 0.5, -9),
+    -- Container for Logo + Title + Status with UIListLayout (prevents text overlap)
+    local LeftGroup = New("Frame", {
+        Position = UDim2.fromOffset(12, 0),
+        Size = UDim2.new(1, -150, 1, 0),
+        BackgroundTransparency = 1,
+        ZIndex = 12,
+        Parent = Bar,
+    }, {
+        New("UIListLayout", {
+            FillDirection = Enum.FillDirection.Horizontal,
+            VerticalAlignment = Enum.VerticalAlignment.Center,
+            Padding = UDim.new(0, 8),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+        }),
+    })
+
+    Logo(LeftGroup, {
         Size = UDim2.fromOffset(18, 18),
-        ZIndex = 12,
+        LayoutOrder = 1,
+        ZIndex = 13,
     })
 
-    Label(Bar, {
-        Position = UDim2.fromOffset(38, 0),
-        Size = UDim2.new(0, 46, 1, 0),
+    Label(LeftGroup, {
+        Size = UDim2.new(0, 0, 1, 0),
+        AutomaticSize = Enum.AutomaticSize.X,
         Font = Enum.Font.GothamBold,
+        TextSize = 12,
         Text = config.Title or "Nexus",
-        ZIndex = 12,
+        LayoutOrder = 2,
+        ZIndex = 13,
     })
 
-    local Status = Label(Bar, {
-        Position = UDim2.fromOffset(88, 0),
-        Size = UDim2.new(0, 110, 1, 0),
+    local Status = Label(LeftGroup, {
+        Size = UDim2.new(0, 0, 1, 0),
+        AutomaticSize = Enum.AutomaticSize.X,
         Font = Enum.Font.Gotham,
         TextSize = 11,
         TextColor3 = Theme.Dim,
         Text = config.Status or "Ready",
-        ZIndex = 12,
+        LayoutOrder = 3,
+        ZIndex = 13,
     })
 
     local Stats = Label(Bar, {
@@ -684,9 +704,8 @@ function NexusLib:CreateDynamicIsland(config)
 
     function IslandApi:SetStatus(text)
         Status.TextTransparency = 1
-        Status.Position = UDim2.fromOffset(88, 4)
         Status.Text = text
-        Tween(Status, 0.3, nil, nil, { TextTransparency = 0, Position = UDim2.fromOffset(88, 0) })
+        Tween(Status, 0.3, nil, nil, { TextTransparency = 0 })
     end
 
     function IslandApi:SetHiddenLabel(hidden)
@@ -1212,7 +1231,8 @@ function NexusLib:CreateWindow(config)
     end
 
     function Window:Notify(cfg)
-        return NexusLib:Notify(cfg)
+        _G.NexusLib = NexusLib
+return NexusLib:Notify(cfg)
     end
 
     function Window:Destroy()
@@ -2213,4 +2233,5 @@ function NexusLib:Demo()
     end)
 end
 
+_G.NexusLib = NexusLib
 return NexusLib
