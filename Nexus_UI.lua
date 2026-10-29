@@ -61,6 +61,7 @@ local NexusLib = {
 }
 NexusLib.__index = NexusLib
 _G.NexusLib = NexusLib
+shared.NexusLib = NexusLib
 
 
 local Theme = NexusLib.Theme
@@ -118,10 +119,15 @@ local TAB_KEY_MAP = {
 --------------------------------------------------------------------------
 -- HELPERS
 --------------------------------------------------------------------------
-local function GetSafeGui()
+local function GetSafeGui(): Instance
     local tries = {
         function() return (gethui and gethui()) end,
-        function() return CoreGui end,
+        function()
+            local test = Instance.new("Folder")
+            test.Parent = CoreGui
+            test:Destroy()
+            return CoreGui
+        end,
         function() return (LocalPlayer and LocalPlayer:WaitForChild("PlayerGui", 5)) end,
         function() return (Players.LocalPlayer and Players.LocalPlayer:WaitForChild("PlayerGui", 5)) end,
         function() return game:GetService("StarterGui") end,
@@ -563,6 +569,7 @@ end
 
 function NexusLib:PlayIntro(callback)
     _G.NexusLib = NexusLib
+shared.NexusLib = NexusLib
 return NexusLib:PlayInkIntro(callback)
 end
 
@@ -1236,6 +1243,7 @@ function NexusLib:CreateWindow(config)
 
     function Window:Notify(cfg)
         _G.NexusLib = NexusLib
+shared.NexusLib = NexusLib
 return NexusLib:Notify(cfg)
     end
 
@@ -2238,4 +2246,5 @@ function NexusLib:Demo()
 end
 
 _G.NexusLib = NexusLib
+shared.NexusLib = NexusLib
 return NexusLib
