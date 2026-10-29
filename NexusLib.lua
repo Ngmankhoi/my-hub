@@ -265,7 +265,10 @@ local function drawNexusMonogram(container, sizeScale, tintColor)
     return icon
 end
 
--- Sharp Pure White Source Logo Component
+-- Official Faceted Shard Logo (Uploaded & CDN Hosted)
+local NEXUS_FACETED_ASSET = "rbxassetid://133168353258773"
+
+-- Sharp Faceted Shard Logo Component (With vector fallback)
 local function Logo(parent, props)
     local container = New("Frame", {
         BackgroundTransparency = 1,
@@ -276,16 +279,34 @@ local function Logo(parent, props)
         container[k] = v
     end
 
-    -- Draw authentic source monogram directly
-    drawNexusMonogram(container, 0.88, Theme.White)
+    local img = New("ImageLabel", {
+        Name = "FacetedLogo",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromScale(1.18, 1.18),
+        BackgroundTransparency = 1,
+        Image = NEXUS_FACETED_ASSET,
+        ScaleType = Enum.ScaleType.Fit,
+        ZIndex = (container.ZIndex or 1) + 1,
+        Parent = container,
+    })
 
-    -- Interactive Logo Animation (Hover scale & glow)
+    -- Interactive Logo Animation (Fluid Hover scale & subtle tilt)
     local logoScale = New("UIScale", { Scale = 1, Parent = container })
     container.MouseEnter:Connect(function()
-        Tween(logoScale, 0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Scale = 1.15 })
+        Tween(logoScale, 0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Scale = 1.2 })
+        Tween(img, 0.2, nil, nil, { ImageColor3 = Color3.fromRGB(255, 255, 255) })
     end)
     container.MouseLeave:Connect(function()
-        Tween(logoScale, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Scale = 1 })
+        Tween(logoScale, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Scale = 1 })
+    end)
+
+    -- Fallback vector monogram if asset fails to load
+    task.delay(1.5, function()
+        if not img.IsLoaded and img.Parent then
+            img.Visible = false
+            drawNexusMonogram(container, 0.88, Theme.White)
+        end
     end)
 
     return container
@@ -640,15 +661,52 @@ function NexusLib:CreateDynamicIsland(config)
         ZIndex = 13,
     })
 
-    local Status = Label(LeftGroup, {
+    -- Status Container with pulsing badge indicator and roll transition
+    local StatusContainer = New("Frame", {
         Size = UDim2.new(0, 0, 1, 0),
         AutomaticSize = Enum.AutomaticSize.X,
-        Font = Enum.Font.Gotham,
+        BackgroundTransparency = 1,
+        LayoutOrder = 3,
+        ZIndex = 13,
+        Parent = LeftGroup,
+    }, {
+        New("UIListLayout", {
+            FillDirection = Enum.FillDirection.Horizontal,
+            VerticalAlignment = Enum.VerticalAlignment.Center,
+            Padding = UDim.new(0, 5),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+        }),
+    })
+
+    -- Pulsing radar dot
+    local StatusDot = New("Frame", {
+        Size = UDim2.fromOffset(6, 6),
+        BackgroundColor3 = Color3.fromRGB(50, 215, 130),
+        BorderSizePixel = 0,
+        LayoutOrder = 1,
+        ZIndex = 14,
+        Parent = StatusContainer,
+    }, { Corner(3) })
+
+    local dotScale = New("UIScale", { Scale = 1, Parent = StatusDot })
+    task.spawn(function()
+        while StatusDot.Parent do
+            Tween(dotScale, 0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, { Scale = 1.35 })
+            task.wait(0.8)
+            Tween(dotScale, 0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, { Scale = 1 })
+            task.wait(0.8)
+        end
+    end)
+
+    local Status = Label(StatusContainer, {
+        Size = UDim2.new(0, 0, 1, 0),
+        AutomaticSize = Enum.AutomaticSize.X,
+        Font = Enum.Font.GothamMedium,
         TextSize = 11,
         TextColor3 = Theme.Dim,
         Text = config.Status or "Ready",
-        LayoutOrder = 3,
-        ZIndex = 13,
+        LayoutOrder = 2,
+        ZIndex = 14,
     })
 
     local Stats = Label(Bar, {
@@ -698,34 +756,144 @@ function NexusLib:CreateDynamicIsland(config)
     local IslandApi = { Gui = Gui, Frame = Island, Expanded = false }
     NexusLib.ActiveIsland = IslandApi
 
+    -- Upgraded Multi-Phase Fluid Morphing Animation
     function IslandApi:SetExpanded(on)
         IslandApi.Expanded = on
-        Tween(Island, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
-            Size = on and UDim2.fromOffset(ISLAND_OPEN_W, ISLAND_OPEN_H) or UDim2.fromOffset(ISLAND_W, ISLAND_H),
-        })
-        Tween(Caret, 0.3, nil, nil, {
-            Rotation = on and -90 or 90,
-            ImageColor3 = on and Theme.Text or Theme.Faint,
-        })
+        if on then
+            -- Phase 1: Horizontal spring stretch
+            Tween(Island, 0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+                Size = UDim2.fromOffset(ISLAND_OPEN_W + 16, ISLAND_H),
+            })
+            -- Phase 2: Vertical card expansion with spring overshoot
+            task.delay(0.10, function()
+                if IslandApi.Expanded then
+                    Tween(Island, 0.38, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+                        Size = UDim2.fromOffset(ISLAND_OPEN_W, ISLAND_OPEN_H),
+                    })
+                    Tween(Island.UICorner, 0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+                        CornerRadius = UDim.new(0, 16),
+                    })
+                end
+            end)
+            -- Staggered button reveal with upward slide
+            Drawer.Visible = true
+            HideBtn.Position = UDim2.fromOffset(0, 8)
+            HideBtn.TextTransparency = 1
+            TestBtn.Position = UDim2.fromOffset(0, 8)
+            TestBtn.TextTransparency = 1
+            task.delay(0.16, function()
+                if IslandApi.Expanded then
+                    Tween(HideBtn, 0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+                        Position = UDim2.fromOffset(0, 0),
+                        TextTransparency = 0,
+                    })
+                end
+            end)
+            task.delay(0.22, function()
+                if IslandApi.Expanded then
+                    Tween(TestBtn, 0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+                        Position = UDim2.fromOffset(0, 0),
+                        TextTransparency = 0,
+                    })
+                end
+            end)
+            Tween(Caret, 0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+                Rotation = -90,
+                ImageColor3 = Theme.Text,
+            })
+        else
+            -- Snap drawer buttons out
+            Tween(HideBtn, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In, {
+                Position = UDim2.fromOffset(0, 8),
+                TextTransparency = 1,
+            })
+            Tween(TestBtn, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In, {
+                Position = UDim2.fromOffset(0, 8),
+                TextTransparency = 1,
+            })
+            -- Pill elastic contract & spring back to rest
+            Tween(Island, 0.38, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+                Size = UDim2.fromOffset(ISLAND_W, ISLAND_H),
+            })
+            Tween(Island.UICorner, 0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+                CornerRadius = UDim.new(0, 20),
+            })
+            task.delay(0.18, function()
+                if not IslandApi.Expanded then Drawer.Visible = false end
+            end)
+            Tween(Caret, 0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+                Rotation = 90,
+                ImageColor3 = Theme.Faint,
+            })
+        end
+
         if NexusLib.ActiveWindow then
             NexusLib.ActiveWindow:PushDown(on)
         end
     end
 
-    function IslandApi:SetStatus(text)
-        Status.TextTransparency = 1
-        Status.Text = text
-        Tween(Status, 0.3, nil, nil, { TextTransparency = 0 })
+    -- Slick Slide-Roll Status Transition
+    function IslandApi:SetStatus(newText)
+        if Status.Text == newText then return end
+        -- Status indicator dot color change
+        if newText == "Hidden" then
+            Tween(StatusDot, 0.3, nil, nil, { BackgroundColor3 = Color3.fromRGB(240, 160, 60) })
+        elseif newText == "Farming" then
+            Tween(StatusDot, 0.3, nil, nil, { BackgroundColor3 = Color3.fromRGB(155, 120, 255) })
+        else
+            Tween(StatusDot, 0.3, nil, nil, { BackgroundColor3 = Color3.fromRGB(50, 215, 130) })
+        end
+
+        -- Slide up & fade roll
+        Tween(Status, 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In, {
+            Position = UDim2.fromOffset(0, -6),
+            TextTransparency = 1,
+        })
+        task.delay(0.15, function()
+            Status.Text = newText
+            Status.Position = UDim2.fromOffset(0, 6)
+            Tween(Status, 0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+                Position = UDim2.fromOffset(0, 0),
+                TextTransparency = 0,
+            })
+        end)
     end
 
     function IslandApi:SetHiddenLabel(hidden)
         HideBtn.Text = hidden and "Show UI" or "Hide UI"
     end
 
+    -- Upgraded Multi-Phase Energy Swallow (Gulp) Physics
     function IslandApi:Gulp()
-        Tween(Bump, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Scale = 1.06 })
+        -- Phase 1: Horizontal bulge, vertical squash & accent energy rim flash
+        Tween(Bump, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Scale = 1.1 })
+        Tween(Island, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+            Size = UDim2.fromOffset(ISLAND_W + 36, ISLAND_H + 6),
+        })
+        Tween(Island.UIStroke, 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+            Color = Theme.Accent,
+            Transparency = 0.2,
+            Thickness = 2,
+        })
+
+        -- Phase 2: Inward elastic rebound
         task.delay(0.12, function()
-            Tween(Bump, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Scale = 1 })
+            Tween(Bump, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Scale = 0.94 })
+            Tween(Island, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+                Size = UDim2.fromOffset(ISLAND_W - 16, ISLAND_H - 4),
+            })
+            Tween(Island.UIStroke, 0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+                Color = Color3.fromRGB(255, 255, 255),
+                Transparency = Theme.StrokeAlpha,
+                Thickness = 1,
+            })
+        end)
+
+        -- Phase 3: Final spring settle
+        task.delay(0.30, function()
+            local targetSize = IslandApi.Expanded and UDim2.fromOffset(ISLAND_OPEN_W, ISLAND_OPEN_H) or UDim2.fromOffset(ISLAND_W, ISLAND_H)
+            Tween(Bump, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Scale = 1 })
+            Tween(Island, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Size = targetSize })
         end)
     end
 
@@ -733,8 +901,29 @@ function NexusLib:CreateDynamicIsland(config)
         IslandApi:SetExpanded(not IslandApi.Expanded)
     end)
 
-    Island.MouseEnter:Connect(function() Tween(Island.UIStroke, 0.2, nil, nil, { Transparency = 0.86 }) end)
-    Island.MouseLeave:Connect(function() Tween(Island.UIStroke, 0.2, nil, nil, { Transparency = Theme.StrokeAlpha }) end)
+    -- Hover Breathing Physics & Glow
+    Island.MouseEnter:Connect(function()
+        Tween(Island.UIStroke, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+            Transparency = 0.72,
+            Color = Color3.fromRGB(255, 255, 255),
+        })
+        if not IslandApi.Expanded then
+            Tween(Island, 0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+                Size = UDim2.fromOffset(ISLAND_W + 14, ISLAND_H),
+            })
+        end
+    end)
+    Island.MouseLeave:Connect(function()
+        Tween(Island.UIStroke, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+            Transparency = Theme.StrokeAlpha,
+            Color = Color3.fromRGB(255, 255, 255),
+        })
+        if not IslandApi.Expanded then
+            Tween(Island, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+                Size = UDim2.fromOffset(ISLAND_W, ISLAND_H),
+            })
+        end
+    end)
 
     HideBtn.MouseButton1Click:Connect(function()
         if NexusLib.ActiveWindow then
@@ -898,12 +1087,17 @@ local function createMobileToggleButton(parentGui, window)
     stroke.Thickness = 1
     stroke.Parent = button
 
-    local icon = drawNexusMonogram(button, 28)
-    icon.Size = UDim2.fromScale(0.55, 0.55)
-    icon.ZIndex = 201
-    for _, ch in ipairs(icon:GetChildren()) do
-        if ch:IsA("GuiObject") then ch.ZIndex = 202 end
-    end
+    local icon = New("ImageLabel", {
+        Name = "MobileFacetedLogo",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.5),
+        Size = UDim2.fromScale(0.72, 0.72),
+        BackgroundTransparency = 1,
+        Image = NEXUS_FACETED_ASSET,
+        ScaleType = Enum.ScaleType.Fit,
+        ZIndex = 202,
+        Parent = button,
+    })
 
     local dragging = false
     local dragStart = Vector2.new()
