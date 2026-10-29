@@ -55,7 +55,7 @@ local NexusLib = {
     },
     ToggleKey = Enum.KeyCode.RightShift,
     DefaultWindowSize = Vector2.new(640, 420),
-    NotifyDuration = 3,
+    NotifyDuration = 6,
     Listening = false,
     _windows = {},
 }
@@ -2075,7 +2075,7 @@ return NexusLib:Notify(cfg)
             NexusLib:Notify({
                 Title = config.Title or "Nexus Hub",
                 Content = (config.Subtitle or config.SubTitle or "Universal") .. " · Loaded",
-                Duration = 3.5,
+                Duration = 6,
             })
         end)
     else
@@ -2083,7 +2083,7 @@ return NexusLib:Notify(cfg)
             NexusLib:Notify({
                 Title = config.Title or "Nexus Hub",
                 Content = (config.Subtitle or config.SubTitle or "Universal") .. " · Loaded",
-                Duration = 3,
+                Duration = 6,
             })
         end)
     end
