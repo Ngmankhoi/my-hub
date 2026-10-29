@@ -1243,8 +1243,8 @@ function NexusLib:CreateWindow(config)
 
     function Window:Notify(cfg)
         _G.NexusLib = NexusLib
-shared.NexusLib = NexusLib
-return NexusLib:Notify(cfg)
+        shared.NexusLib = NexusLib
+        return NexusLib:Notify(cfg)
     end
 
     function Window:Destroy()
