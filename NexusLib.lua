@@ -212,16 +212,10 @@ local NEXUS_POLYGONS = {
     },
 }
 
-local function drawNexusMonogram(container, size)
-    local icon = Instance.new("Frame")
-    icon.Name = "NexusMonogram"
-    icon.AnchorPoint = Vector2.new(0.5, 0.5)
-    icon.Position = UDim2.fromScale(0.5, 0.5)
-    icon.Size = UDim2.fromScale(0.8, 0.8)
-    icon.BackgroundTransparency = 1
-    icon.Parent = container
-
-    local step = 3
+-- Precompute scanline strips for zero-cost runtime instantiation
+local MONOGRAM_STRIPS = {}
+do
+    local step = 2
     for _, polygon in ipairs(NEXUS_POLYGONS) do
         for y = 0, 254, step do
             local scanY = y + step / 2
@@ -237,19 +231,41 @@ local function drawNexusMonogram(container, size)
             for i = 1, #intersections - 1, 2 do
                 local left = intersections[i]
                 local right = intersections[i + 1]
-                local strip = Instance.new("Frame")
-                strip.BorderSizePixel = 0
-                strip.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                strip.Position = UDim2.fromScale(left / 256, y / 256)
-                strip.Size = UDim2.fromScale((right - left) / 256, (step + 0.7) / 256)
-                strip.Parent = icon
+                table.insert(MONOGRAM_STRIPS, {
+                    Pos = UDim2.fromScale(left / 256, y / 256),
+                    Size = UDim2.fromScale((right - left) / 256, (step + 0.6) / 256),
+                })
             end
         end
+    end
+end
+
+local function drawNexusMonogram(container, sizeScale, tintColor)
+    local icon = Instance.new("Frame")
+    icon.Name = "NexusMonogram"
+    icon.AnchorPoint = Vector2.new(0.5, 0.5)
+    icon.Position = UDim2.fromScale(0.5, 0.5)
+    local s = sizeScale or 0.88
+    icon.Size = UDim2.fromScale(s, s)
+    icon.BackgroundTransparency = 1
+    local z = (container.ZIndex or 1) + 1
+    icon.ZIndex = z
+    icon.Parent = container
+
+    local color = tintColor or Color3.fromRGB(255, 255, 255)
+    for _, stripData in ipairs(MONOGRAM_STRIPS) do
+        local strip = Instance.new("Frame")
+        strip.BorderSizePixel = 0
+        strip.BackgroundColor3 = color
+        strip.Position = stripData.Pos
+        strip.Size = stripData.Size
+        strip.ZIndex = z + 1
+        strip.Parent = icon
     end
     return icon
 end
 
--- Sharp 2K Logo Component
+-- Sharp Pure White Source Logo Component
 local function Logo(parent, props)
     local container = New("Frame", {
         BackgroundTransparency = 1,
@@ -260,33 +276,16 @@ local function Logo(parent, props)
         container[k] = v
     end
 
-    local img = New("ImageLabel", {
-        Name = "Logo2K",
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.fromScale(0.5, 0.5),
-        Size = UDim2.fromScale(1, 1),
-        BackgroundTransparency = 1,
-        Image = NEXUS_2K_ASSET,
-        ImageColor3 = Theme.White,
-        ScaleType = Enum.ScaleType.Fit,
-        Parent = container,
-    })
+    -- Draw authentic source monogram directly
+    drawNexusMonogram(container, 0.88, Theme.White)
 
     -- Interactive Logo Animation (Hover scale & glow)
     local logoScale = New("UIScale", { Scale = 1, Parent = container })
     container.MouseEnter:Connect(function()
-        Tween(logoScale, 0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Scale = 1.12 })
+        Tween(logoScale, 0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Scale = 1.15 })
     end)
     container.MouseLeave:Connect(function()
         Tween(logoScale, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Scale = 1 })
-    end)
-
-    -- Fallback scanline if asset fails to load
-    task.delay(1.5, function()
-        if not img.IsLoaded and img.Parent then
-            img.Visible = false
-            drawNexusMonogram(container, container.AbsoluteSize.Y)
-        end
     end)
 
     return container
@@ -1110,22 +1109,36 @@ function NexusLib:CreateWindow(config)
     end)
     MinBtn.MouseButton1Click:Connect(function() Window:SetVisible(false) end)
 
-    -- Draggable Title Bar
+    -- Draggable Title Bar & Double-Click to Reset
     local dragging, dragStart, startPos = false, nil, nil
+    local lastTitleClick = 0
+
     TitleBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            local now = tick()
+            if now - lastTitleClick < 0.35 then
+                Window:ResetPosition()
+                dragging = false
+                return
+            end
+            lastTitleClick = now
             dragging, dragStart, startPos = true, input.Position, Frame.Position
         end
     end)
     UserInputService.InputChanged:Connect(function(input)
         if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             local d = input.Position - dragStart
-            Frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+            local newY = math.max(homeY, startPos.Y.Offset + d.Y)
+            Frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, newY)
+            savedRestPos = Frame.Position
         end
     end)
     UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
+            if dragging then
+                dragging = false
+                savedRestPos = Frame.Position
+            end
         end
     end)
 
@@ -1181,6 +1194,9 @@ function NexusLib:CreateWindow(config)
     })
 
     ---------------- WINDOW METHODS ----------------
+    local defaultHomePos = UDim2.new(0.5, 0, 0, homeY)
+    local savedRestPos = defaultHomePos
+
     function Window:SetVisible(on)
         if on == Window.Visible then return end
         Window.Visible = on
@@ -1190,14 +1206,25 @@ function NexusLib:CreateWindow(config)
 
         if on then
             Frame.Visible = true
+            -- Target Y is saved rest position plus drawer offset if island is currently expanded
+            local islandExtra = (island and island.Expanded) and (ISLAND_OPEN_H - ISLAND_H) or 0
+            local targetY = math.max(homeY, savedRestPos.Y.Offset) + islandExtra
+            local targetPos = UDim2.new(savedRestPos.X.Scale, savedRestPos.X.Offset, savedRestPos.Y.Scale, targetY)
+
             Tween(Frame, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
-                Position = savedPos,
+                Position = targetPos,
                 GroupTransparency = 0,
             })
             Tween(Pop, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Scale = 1 })
             if island then island:SetStatus("Ready") end
         else
-            savedPos = Frame.Position
+            -- Capture current rest position only if positioned comfortably below the island
+            if Frame.Position.Y.Offset >= homeY - 10 then
+                local islandExtra = (island and island.Expanded) and (ISLAND_OPEN_H - ISLAND_H) or 0
+                local curY = math.max(homeY, Frame.Position.Y.Offset - islandExtra)
+                savedRestPos = UDim2.new(Frame.Position.X.Scale, Frame.Position.X.Offset, Frame.Position.Y.Scale, curY)
+            end
+
             Tween(Frame, 0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.In, {
                 Position = UDim2.new(0.5, 0, 0, ISLAND_TOP),
                 GroupTransparency = 1,
@@ -1224,15 +1251,16 @@ function NexusLib:CreateWindow(config)
     end
 
     function Window:ResetPosition()
-        savedPos = UDim2.new(0.5, 0, 0, homeY + (Window.Pushed and (ISLAND_OPEN_H - ISLAND_H) or 0))
-        Tween(Frame, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Position = savedPos })
+        savedRestPos = defaultHomePos
+        local islandExtra = (NexusLib.ActiveIsland and NexusLib.ActiveIsland.Expanded) and (ISLAND_OPEN_H - ISLAND_H) or 0
+        local targetPos = UDim2.new(defaultHomePos.X.Scale, defaultHomePos.X.Offset, defaultHomePos.Y.Scale, defaultHomePos.Y.Offset + islandExtra)
+        Tween(Frame, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Position = targetPos })
     end
 
     function Window:PushDown(pushed)
         if pushed == Window.Pushed then return end
         Window.Pushed = pushed
         local dy = pushed and (ISLAND_OPEN_H - ISLAND_H) or -(ISLAND_OPEN_H - ISLAND_H)
-        savedPos = UDim2.new(savedPos.X.Scale, savedPos.X.Offset, savedPos.Y.Scale, savedPos.Y.Offset + dy)
         if Window.Visible then
             local p = Frame.Position
             Tween(Frame, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
