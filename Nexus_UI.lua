@@ -262,6 +262,15 @@ local function Logo(parent, props)
         Parent = container,
     })
 
+    -- Interactive Logo Animation (Hover scale & glow)
+    local logoScale = New("UIScale", { Scale = 1, Parent = container })
+    container.MouseEnter:Connect(function()
+        Tween(logoScale, 0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Scale = 1.12 })
+    end)
+    container.MouseLeave:Connect(function()
+        Tween(logoScale, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Scale = 1 })
+    end)
+
     -- Fallback scanline if asset fails to load
     task.delay(1.5, function()
         if not img.IsLoaded and img.Parent then
@@ -936,6 +945,14 @@ function NexusLib:CreateWindow(config)
     config = config or {}
     local size = config.Size or UDim2.fromOffset(NexusLib.DefaultWindowSize.X, NexusLib.DefaultWindowSize.Y)
     local homeY = ISLAND_TOP + ISLAND_H + 12
+
+    -- Automatic Dynamic Island creation if enabled (default true)
+    if config.Island ~= false and not NexusLib.ActiveIsland then
+        NexusLib:CreateDynamicIsland({
+            Title = config.Title or "Nexus",
+            Status = "Ready",
+        })
+    end
 
     local Gui = New("ScreenGui", {
         Name = "Nexus_Window",
@@ -2016,6 +2033,37 @@ function NexusLib:CreateWindow(config)
     end
 
     table.insert(NexusLib._windows, Window)
+
+    -- Auto-play Ink-Swirl Intro and show Welcome Notify when script opens
+    if config.Intro ~= false and not NexusLib._introPlayed then
+        NexusLib._introPlayed = true
+        Frame.Visible = false
+        if Window.MobileButton then Window.MobileButton.Visible = false end
+        if NexusLib.ActiveIsland then NexusLib.ActiveIsland.Frame.Visible = false end
+
+        NexusLib:PlayInkIntro(function()
+            if NexusLib.ActiveIsland then
+                NexusLib.ActiveIsland.Frame.Visible = true
+            end
+            Frame.Visible = true
+            if Window.MobileButton then Window.MobileButton.Visible = true end
+            Window:SetVisible(true)
+            NexusLib:Notify({
+                Title = config.Title or "Nexus Hub",
+                Content = (config.Subtitle or config.SubTitle or "Universal") .. " · Loaded",
+                Duration = 3.5,
+            })
+        end)
+    else
+        task.defer(function()
+            NexusLib:Notify({
+                Title = config.Title or "Nexus Hub",
+                Content = (config.Subtitle or config.SubTitle or "Universal") .. " · Loaded",
+                Duration = 3,
+            })
+        end)
+    end
+
     return Window
 end
 
