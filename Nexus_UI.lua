@@ -34,7 +34,9 @@ local Lighting = game:GetService("Lighting")
 
 local LocalPlayer = Players.LocalPlayer
 
+_G.NexusLib = nil
 local NexusLib = {
+
     Theme = {
         Surface           = Color3.fromRGB(17, 17, 20),
         SurfaceAlpha      = 0.12,
@@ -58,6 +60,8 @@ local NexusLib = {
     _windows = {},
 }
 NexusLib.__index = NexusLib
+_G.NexusLib = NexusLib
+
 
 local Theme = NexusLib.Theme
 
