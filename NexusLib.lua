@@ -860,15 +860,12 @@ local function createMobileToggleButton(parentGui, window)
     stroke.Thickness = 1
     stroke.Parent = button
 
-    local nImage = Instance.new("ImageLabel")
-    nImage.Name = "NexusN_2K"
-    nImage.AnchorPoint = Vector2.new(0.5, 0.5)
-    nImage.Position = UDim2.fromScale(0.5, 0.5)
-    nImage.Size = UDim2.fromScale(0.62, 0.62)
-    nImage.BackgroundTransparency = 1
-    nImage.Image = NEXUS_2K_ASSET
-    nImage.ImageColor3 = Color3.fromRGB(255, 255, 255)
-    nImage.Parent = button
+    local icon = drawNexusMonogram(button, 28)
+    icon.Size = UDim2.fromScale(0.55, 0.55)
+    icon.ZIndex = 201
+    for _, ch in ipairs(icon:GetChildren()) do
+        if ch:IsA("GuiObject") then ch.ZIndex = 202 end
+    end
 
     local dragging = false
     local dragStart = Vector2.new()
