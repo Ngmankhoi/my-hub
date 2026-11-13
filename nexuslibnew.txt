@@ -1,7 +1,16 @@
 --[[
     NEXUS UI  -  single-file Luau UI library (Roblox executors)
+
     Everything is in this one file: the ink-swirl intro, the Dynamic Island,
-    the window, tabs, and every element. The logo is embedded (no uploads).
+    the window, tabs, notifications, and every control. The white Nexus N logo
+    is embedded as clean Base64 with a geometric vector shard fallback.
+
+    Quick start (paste directly into your executor and press Execute, or):
+        local Nexus = loadstring(readfile("nexuslibnew.txt"))()
+
+    To import as a library without auto-running the demo UI:
+        _G.NEXUS_LIB_ONLY = true
+        local Nexus = loadstring(readfile("nexuslibnew.txt"))()
 ]]
 
 local TweenService = game:GetService("TweenService")
@@ -11,27 +20,33 @@ local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 
-local LocalPlayer = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
 local NexusLib = {
+    -- Exact Figma Make color tokens (pre-composited over #111114 so 3D game worlds never wash out UI rows)
     Theme = {
-        Surface       = Color3.fromRGB(17, 17, 20),   -- rgba(17,17,20,0.88)
-        SurfaceAlpha  = 0.12,
-        StrokeAlpha   = 0.92,                         -- white @ 8%
-        RowAlpha      = 0.965,
-        RowHoverAlpha = 0.94,
-        ControlAlpha  = 0.93,
-        ControlHoverAlpha = 0.89,
-        Menu          = Color3.fromRGB(24, 24, 28),
-        Knob          = Color3.fromRGB(142, 142, 150),
-        Text          = Color3.fromRGB(237, 237, 239),
-        Dim           = Color3.fromRGB(138, 138, 146),
-        Faint         = Color3.fromRGB(90, 90, 98),
+        Surface       = Color3.fromRGB(17, 17, 20),    -- #111114 (shared by island, window & notifications)
+        SurfaceAlpha  = 0.06,                          -- 94% opaque dark glass
+        Stroke        = Color3.fromRGB(255, 255, 255),
+        StrokeAlpha   = 0.90,                          -- 1px subtle border (rgba(255,255,255,0.10))
+        StrokeHover   = 0.84,                          -- hover border (rgba(255,255,255,0.16))
+        Divider       = Color3.fromRGB(33, 33, 38),    -- #212126 (1px titlebar & sidebar dividers)
+        Row           = Color3.fromRGB(25, 25, 29),    -- #19191d (--row: rgba(255,255,255,0.035) on #111114)
+        RowHover      = Color3.fromRGB(31, 31, 36),    -- #1f1f24 (--row-hover: rgba(255,255,255,0.06) on #111114)
+        Control       = Color3.fromRGB(34, 34, 39),    -- #222227 (--control: rgba(255,255,255,0.07) on #111114)
+        ControlHover  = Color3.fromRGB(43, 43, 50),    -- #2b2b32 (--control-hover: rgba(255,255,255,0.11) on #111114)
+        ToggleOff     = Color3.fromRGB(45, 45, 52),    -- #2d2d34 (rgba(255,255,255,0.12) on #111114)
+        Menu          = Color3.fromRGB(24, 24, 28),    -- #18181c (dropdown menu surface)
+        Knob          = Color3.fromRGB(142, 142, 150),  -- #8e8e96 (toggle off thumb)
+        Text          = Color3.fromRGB(237, 237, 239), -- #ededef (--text)
+        Dim           = Color3.fromRGB(138, 138, 146), -- #8a8a92 (--dim)
+        Faint         = Color3.fromRGB(90, 90, 98),    -- #5a5a62 (--faint)
         White         = Color3.fromRGB(255, 255, 255),
     },
-    ToggleKey = Enum.KeyCode.RightAlt,
+    ToggleKey = Enum.KeyCode.RightShift,
     DefaultWindowSize = Vector2.new(640, 420),
     NotifyDuration = 3,
+    ReduceMotion = false,
     Listening = false,
 }
 NexusLib.__index = NexusLib
@@ -42,17 +57,41 @@ local Theme = NexusLib.Theme
 -- helpers
 --------------------------------------------------------------------------
 local function GetSafeGui()
+    if type(gethui) == "function" then
+        local ok, hui = pcall(gethui)
+        if ok and hui then
+            return hui
+        end
+    end
     local ok, gui = pcall(function()
+        local probe = Instance.new("ScreenGui")
+        probe.Name = "Nexus_Probe"
+        probe.Parent = CoreGui
+        probe:Destroy()
         return CoreGui
     end)
     if ok and gui then
         return gui
     end
-    return LocalPlayer:WaitForChild("PlayerGui")
+    local lp = Players.LocalPlayer or LocalPlayer
+    return lp:WaitForChild("PlayerGui")
+end
+
+local function DestroyExisting(name)
+    local parent = GetSafeGui()
+    local old = parent and parent:FindFirstChild(name)
+    if old then
+        pcall(function() old:Destroy() end)
+    end
 end
 
 local function Tween(instance, time, style, dir, props)
-    local tween = TweenService:Create(instance, TweenInfo.new(time or 0.28, style or Enum.EasingStyle.Quart, dir or Enum.EasingDirection.Out), props)
+    local duration = NexusLib.ReduceMotion and 0.01 or (time or 0.28)
+    local tween = TweenService:Create(
+        instance,
+        TweenInfo.new(duration, style or Enum.EasingStyle.Quart, dir or Enum.EasingDirection.Out),
+        props
+    )
     tween:Play()
     return tween
 end
@@ -80,7 +119,10 @@ end
 
 local function Rim(transparency, color)
     return New("UIStroke", {
-        Color = color or Color3.fromRGB(255, 255, 255), Transparency = transparency, Thickness = 1,
+        Name = "UIStroke",
+        Color = color or Theme.Stroke,
+        Transparency = transparency or Theme.StrokeAlpha,
+        Thickness = 1,
         ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
     })
 end
@@ -94,20 +136,64 @@ local function Label(parent, props)
         TextXAlignment = Enum.TextXAlignment.Left,
         Parent = parent,
     }
-    for k, v in pairs(props or {}) do
+    for k, v in pairs(props) do
         p[k] = v
     end
     return New("TextLabel", p)
 end
 
+-- Vector 2-stroke chevron (replaces Unicode characters that render as [?] in Roblox fonts)
+local function Chevron(parent, props, color)
+    local c = color or Theme.Dim
+    local holder = New("Frame", {
+        Size = UDim2.fromOffset(12, 12),
+        BackgroundTransparency = 1,
+        Parent = parent,
+    })
+    for k, v in pairs(props or {}) do
+        holder[k] = v
+    end
+    local left = New("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, -2, 0.5, 0),
+        Size = UDim2.fromOffset(5, 1.5),
+        Rotation = 40,
+        BackgroundColor3 = c,
+        BorderSizePixel = 0,
+        Parent = holder,
+    }, { Corner(1) })
+    local right = New("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, 2, 0.5, 0),
+        Size = UDim2.fromOffset(5, 1.5),
+        Rotation = -40,
+        BackgroundColor3 = c,
+        BorderSizePixel = 0,
+        Parent = holder,
+    }, { Corner(1) })
+
+    local api = { Frame = holder, Left = left, Right = right }
+    function api:SetOpen(open, activeColor, idleColor)
+        local col = open and (activeColor or Theme.Text) or (idleColor or c)
+        Tween(holder, 0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Rotation = open and 180 or 0 })
+        Tween(left, 0.2, nil, nil, { BackgroundColor3 = col })
+        Tween(right, 0.2, nil, nil, { BackgroundColor3 = col })
+    end
+    return api
+end
+
 --------------------------------------------------------------------------
--- embedded logo
+-- embedded logo (clean 128px pure-white alpha PNG + geometric shard fallback)
 --------------------------------------------------------------------------
-local LOGO_B64 = [=[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]=]
+local LOGO_B64 = [=[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]=]
 
 local B64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
 local function DecodeBase64(data)
+    if type(crypt) == "table" and type(crypt.base64decode) == "function" then
+        local ok, res = pcall(crypt.base64decode, data)
+        if ok and res and #res > 0 then return res end
+    end
     local lookup = {}
     for i = 1, #B64_CHARS do
         lookup[B64_CHARS:sub(i, i)] = i - 1
@@ -145,41 +231,71 @@ local function GetLogoAsset()
         if not (writefile and getAsset) then
             error("no file api")
         end
-        local name = "nexus_logo.png"
-        if not (isfile and isfile(name)) then
-            writefile(name, DecodeBase64(LOGO_B64))
-        end
+        local name = "nexus_logo_white_v4.png"
+        writefile(name, DecodeBase64(LOGO_B64))
         return getAsset(name)
     end)
     NexusLib.LogoAsset = (ok and asset) or ""
     return NexusLib.LogoAsset
 end
 
+-- Renders the embedded PNG logo, or draws the geometric shattered-N shards if file APIs are unavailable
 local function Logo(parent, props)
     local asset = GetLogoAsset()
     if asset ~= "" then
-        local p = { BackgroundTransparency = 1, Image = asset, ScaleType = Enum.ScaleType.Fit, Parent = parent }
-        for k, v in pairs(props or {}) do p[k] = v end
+        local p = {
+            BackgroundTransparency = 1,
+            Image = asset,
+            ImageColor3 = Theme.White,
+            ScaleType = Enum.ScaleType.Fit,
+            Parent = parent,
+        }
+        for k, v in pairs(props) do p[k] = v end
         return New("ImageLabel", p)
     end
-    local p = {
-        BackgroundTransparency = 1, Text = "N", Font = Enum.Font.GothamBlack,
-        TextColor3 = Theme.White, TextScaled = true, Parent = parent,
-    }
-    for k, v in pairs(props or {}) do p[k] = v end
-    return New("TextLabel", p)
+    local box = New("Frame", { BackgroundTransparency = 1, Parent = parent })
+    for k, v in pairs(props) do box[k] = v end
+    local function shard(px, py, sx, sy, rot)
+        New("Frame", {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.fromScale(px, py),
+            Size = UDim2.fromScale(sx, sy),
+            Rotation = rot,
+            BackgroundColor3 = Theme.White,
+            BorderSizePixel = 0,
+            Parent = box,
+        }, { Corner(1) })
+    end
+    -- Stylized shattered Nexus "N" geometry
+    shard(0.42, 0.50, 0.16, 0.96, -33) -- main diagonal slash
+    shard(0.75, 0.46, 0.14, 0.88, 14)  -- right vertical-slanted leg
+    shard(0.24, 0.48, 0.11, 0.30, 12)  -- left upper shard
+    shard(0.20, 0.78, 0.11, 0.28, 16)  -- left lower shard
+    shard(0.90, 0.76, 0.08, 0.26, 16)  -- right outer shard
+    return box
 end
 
 --------------------------------------------------------------------------
 -- INK SWIRL INTRO
+-- Two tapered ink strokes spiral in, orbit as a ring, shrink to two dots;
+-- left dot shoots up into the Dynamic Island at T_PILL, right dot expands
+-- into the main window at T_WINDOW. Click anywhere to skip.
 --------------------------------------------------------------------------
-function NexusLib:PlayInkIntro(callback)
+function NexusLib:PlayInkIntro(callbackOrOpts)
+    local onPill, onWindow
+    if type(callbackOrOpts) == "table" then
+        onPill = callbackOrOpts.OnPill
+        onWindow = callbackOrOpts.OnWindow or callbackOrOpts.Callback
+    else
+        onWindow = callbackOrOpts
+    end
+
     local TAU = math.pi * 2
     local K = TAU * 0.9
     local S0 = 0.2
     local PHI0 = { -0.75 * math.pi, 0.25 * math.pi }
     local S_END = (1.75 * math.pi + TAU) / K
-    local POINTS = 24
+    local POINTS = 26
     local RING = 46
 
     local T_SPIN = 2.15
@@ -207,6 +323,7 @@ function NexusLib:PlayInkIntro(callback)
     local SQUARE_BG = Color3.fromRGB(32, 32, 36)
     local WINDOW_BG = Theme.Surface
 
+    DestroyExisting("Nexus_InkIntro")
     local IntroGui = Instance.new("ScreenGui")
     IntroGui.Name = "Nexus_InkIntro"
     IntroGui.DisplayOrder = 999999
@@ -217,21 +334,21 @@ function NexusLib:PlayInkIntro(callback)
     local Blur = Instance.new("BlurEffect")
     Blur.Size = 0
     pcall(function()
-        Blur.Parent = game:GetService("Lighting")
+        Blur.Parent = Lighting
     end)
-    Tween(Blur, 0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Size = 18 })
+    Tween(Blur, 0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Size = 16 })
 
     local Dim = Instance.new("TextButton")
     Dim.Size = UDim2.new(1, 0, 1, 0)
-    Dim.BackgroundColor3 = Color3.fromRGB(5, 6, 8)
-    Dim.BackgroundTransparency = 0.45
+    Dim.BackgroundColor3 = Color3.fromRGB(8, 8, 9)
+    Dim.BackgroundTransparency = 0.25
     Dim.BorderSizePixel = 0
     Dim.Text = ""
     Dim.AutoButtonColor = false
     Dim.Parent = IntroGui
 
     local camera = workspace.CurrentCamera
-    local vp = camera and camera.ViewportSize or Vector2.new(1280, 720)
+    local vp = (camera and camera.ViewportSize and camera.ViewportSize.X > 100) and camera.ViewportSize or Vector2.new(1280, 720)
     local cx, cy = vp.X / 2, vp.Y * 0.46
     local R0 = math.max(vp.X, vp.Y) * 0.6
     local winSize = NexusLib.DefaultWindowSize
@@ -322,25 +439,31 @@ function NexusLib:PlayInkIntro(callback)
 
     local conn
     local finished = false
-    local calledBack = false
+    local firedPill = false
+    local firedWindow = false
 
-    local function fireCallback()
-        if calledBack then return end
-        calledBack = true
-        if callback then
-            task.spawn(callback)
-        end
+    local function firePill()
+        if firedPill then return end
+        firedPill = true
+        if onPill then task.spawn(onPill) end
+    end
+
+    local function fireWindow()
+        if firedWindow then return end
+        firedWindow = true
+        firePill()
+        if onWindow then task.spawn(onWindow) end
     end
 
     local function Finish()
         if finished then return end
         finished = true
         if conn then conn:Disconnect() end
-        fireCallback()
-        Tween(Blur, 0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Size = 0 })
+        fireWindow()
+        Tween(Blur, 0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Size = 0 })
         IntroGui:Destroy()
-        task.delay(0.5, function()
-            Blur:Destroy()
+        task.delay(0.4, function()
+            pcall(function() Blur:Destroy() end)
         end)
     end
 
@@ -361,6 +484,7 @@ function NexusLib:PlayInkIntro(callback)
             end
         else
             hideStrokes()
+
             local d = lerp(9, 18, easeOutCubic(clamp01((t - T_SPIN) / (T_GROW - T_SPIN))))
             local gap = 16
 
@@ -373,7 +497,7 @@ function NexusLib:PlayInkIntro(callback)
                 local w = p < 0.5 and lerp(18, 12, p / 0.5) or lerp(12, isl.w, easeOutCubic((p - 0.5) / 0.5))
                 local tone = smooth(0.55, 1, p)
                 place(BlobL, lerp(cx - gap, isl.cx, e), lerp(cy, isl.cy, e), w, h,
-                    math.min(w, h) / 2, INK:Lerp(ISLAND_BG, tone), 0, 0.08 * tone)
+                    math.min(w, h) / 2, INK:Lerp(ISLAND_BG, tone), 0, 0.10 * tone)
             end
 
             local q = clamp01((t - T_GROW) / (T_SQUARE - T_GROW))
@@ -389,14 +513,19 @@ function NexusLib:PlayInkIntro(callback)
             end
         end
 
+        if t >= T_PILL then
+            firePill()
+        end
+
+        Dim.BackgroundTransparency = lerp(0.25, 1, smooth(T_SQUARE, T_WINDOW + 0.2, t))
+
         if t >= T_WINDOW then
-            fireCallback()
+            fireWindow()
             local f = clamp01((t - T_WINDOW) / (T_END - T_WINDOW))
             BlobL.BackgroundTransparency = f
             BlobR.BackgroundTransparency = f
             BlobL.Rim.Transparency = 1
             BlobR.Rim.Transparency = 1
-            Dim.BackgroundTransparency = lerp(0.45, 1, f)
         end
         if t >= T_END then
             Finish()
@@ -409,7 +538,7 @@ function NexusLib:PlayIntro(callback)
 end
 
 --------------------------------------------------------------------------
--- shared surface
+-- shared surface (native Frame so text & 1px strokes stay razor-sharp)
 --------------------------------------------------------------------------
 local function Surface(class, props, radius)
     local p = {
@@ -417,29 +546,34 @@ local function Surface(class, props, radius)
         BackgroundTransparency = Theme.SurfaceAlpha,
         BorderSizePixel = 0,
     }
-    for k, v in pairs(props or {}) do p[k] = v end
+    for k, v in pairs(props) do p[k] = v end
     return New(class, p, { Corner(radius or 14), Rim(Theme.StrokeAlpha) })
 end
 
-local function Soft(transparency)
-    return { BackgroundColor3 = Theme.White, BackgroundTransparency = transparency, BorderSizePixel = 0 }
-end
-
-local function Merge(a, b)
-    local out = {}
-    for k, v in pairs(a or {}) do out[k] = v end
-    for k, v in pairs(b or {}) do out[k] = v end
-    return out
-end
-
-local function Button(parent, text, props)
-    local b = New("TextButton", Merge(Soft(Theme.ControlAlpha), {
-        AutoButtonColor = false, Text = text, Font = Enum.Font.GothamMedium, TextSize = 11,
-        TextColor3 = Theme.Text, Parent = parent,
-    }), { Corner(7) })
+-- flat control button used in island drawer and inside rows
+local function Button(parent, text, props, ghost)
+    local bg = ghost and Theme.Surface or Theme.Control
+    local b = New("TextButton", {
+        BackgroundColor3 = bg,
+        BackgroundTransparency = ghost and 0.4 or 0,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = text,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 11,
+        TextColor3 = Theme.Text,
+        Parent = parent,
+    }, { Corner(7) })
+    if ghost then
+        Rim(Theme.StrokeAlpha).Parent = b
+    end
     for k, v in pairs(props or {}) do b[k] = v end
-    b.MouseEnter:Connect(function() Tween(b, 0.15, nil, nil, { BackgroundTransparency = Theme.ControlHoverAlpha }) end)
-    b.MouseLeave:Connect(function() Tween(b, 0.15, nil, nil, { BackgroundTransparency = Theme.ControlAlpha }) end)
+    b.MouseEnter:Connect(function()
+        Tween(b, 0.15, nil, nil, { BackgroundColor3 = Theme.ControlHover, BackgroundTransparency = 0 })
+    end)
+    b.MouseLeave:Connect(function()
+        Tween(b, 0.15, nil, nil, { BackgroundColor3 = bg, BackgroundTransparency = ghost and 0.4 or 0 })
+    end)
     b.MouseButton1Down:Connect(function()
         local s = b:FindFirstChild("Press") or New("UIScale", { Name = "Press", Parent = b })
         Tween(s, 0.08, nil, nil, { Scale = 0.96 })
@@ -452,17 +586,14 @@ local function Button(parent, text, props)
 end
 
 --------------------------------------------------------------------------
--- DYNAMIC ISLAND (Clean drawer, test notify button removed)
+-- DYNAMIC ISLAND
 --------------------------------------------------------------------------
 local ISLAND_TOP, ISLAND_W, ISLAND_H = 14, 340, 40
-local ISLAND_OPEN_W, ISLAND_OPEN_H = 340, 78
+local ISLAND_OPEN_W, ISLAND_OPEN_H = 400, 82
 
 function NexusLib:CreateDynamicIsland(config)
     config = config or {}
-    if NexusLib.ActiveIsland and NexusLib.ActiveIsland.Gui and NexusLib.ActiveIsland.Gui.Parent then
-        return NexusLib.ActiveIsland
-    end
-
+    DestroyExisting("Nexus_Island")
     local Gui = New("ScreenGui", {
         Name = "Nexus_Island", DisplayOrder = 100000, ResetOnSpawn = false,
         IgnoreGuiInset = true, Parent = GetSafeGui(),
@@ -475,39 +606,46 @@ function NexusLib:CreateDynamicIsland(config)
         ClipsDescendants = true,
         Parent = Gui,
     }, 20)
-    local Bump = New("UIScale", { Scale = 0.85, Parent = Island })
-    Tween(Bump, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Scale = 1 })
+    local IslandCorner = Island:FindFirstChildOfClass("UICorner")
+    local Bump = New("UIScale", { Scale = 0.92, Parent = Island })
+    Tween(Bump, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Scale = 1 })
 
     local Bar = New("TextButton", {
         Size = UDim2.new(1, 0, 0, ISLAND_H), BackgroundTransparency = 1, Text = "",
         AutoButtonColor = false, Parent = Island,
     })
     Logo(Bar, { Position = UDim2.new(0, 12, 0.5, -9), Size = UDim2.fromOffset(18, 18) })
-    Label(Bar, {
-        Position = UDim2.fromOffset(38, 0), Size = UDim2.new(0, 46, 1, 0),
-        Font = Enum.Font.GothamBold, Text = config.Title or "Nexus",
+    local NameLabel = Label(Bar, {
+        Position = UDim2.fromOffset(39, 0), Size = UDim2.new(0, 42, 1, 0),
+        Font = Enum.Font.GothamBold, TextSize = 12, Text = config.Title or "Nexus",
     })
     local Status = Label(Bar, {
-        Position = UDim2.fromOffset(88, 0), Size = UDim2.new(0, 110, 1, 0),
-        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Dim, Text = config.Status or "Ready",
+        Position = UDim2.fromOffset(84, 0), Size = UDim2.new(0, 110, 1, 0),
+        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Dim, Text = config.Status or "Farming",
     })
     local Stats = Label(Bar, {
-        AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -32, 0, 0), Size = UDim2.new(0, 110, 1, 0),
+        AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -33, 0, 0), Size = UDim2.new(0, 115, 1, 0),
         Font = Enum.Font.Code, TextSize = 10, TextColor3 = Theme.Dim, TextXAlignment = Enum.TextXAlignment.Right,
-        Text = "60 fps · 0ms",
+        RichText = true,
+        Text = "144 fps <font color=\"#5a5a62\">·</font> 19ms",
     })
-    local Caret = Label(Bar, {
-        AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.fromOffset(12, 12),
-        TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = Theme.Faint, TextSize = 11, Text = "▾",
-    })
+    local Caret = Chevron(Bar, {
+        AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -13, 0.5, 0),
+    }, Theme.Faint)
 
+    -- drawer: Clean full-width Hide UI button (removed test notify button)
     local Drawer = New("Frame", {
-        Position = UDim2.fromOffset(10, ISLAND_H + 2), Size = UDim2.new(1, -20, 0, 28),
+        Position = UDim2.fromOffset(10, ISLAND_H + 2), Size = UDim2.new(1, -20, 0, 30),
         BackgroundTransparency = 1, Parent = Island,
+    }, {
+        New("UIListLayout", {
+            FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+        }),
     })
-    local HideBtn = Button(Drawer, "Hide UI", { Size = UDim2.new(1, 0, 1, 0) })
+    local HideBtn = Button(Drawer, "Hide UI", { Size = UDim2.new(1, 0, 1, 0), LayoutOrder = 1 }, false)
 
-    local IslandApi = { Gui = Gui, Frame = Island, Expanded = false }
+    local IslandApi = { Gui = Gui, Frame = Island, Expanded = false, ShowStats = true }
     NexusLib.ActiveIsland = IslandApi
 
     function IslandApi:SetExpanded(on)
@@ -515,16 +653,23 @@ function NexusLib:CreateDynamicIsland(config)
         Tween(Island, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
             Size = on and UDim2.fromOffset(ISLAND_OPEN_W, ISLAND_OPEN_H) or UDim2.fromOffset(ISLAND_W, ISLAND_H),
         })
-        Tween(Caret, 0.3, nil, nil, { Rotation = on and 180 or 0, TextColor3 = on and Theme.Text or Theme.Faint })
+        if IslandCorner then
+            Tween(IslandCorner, 0.35, nil, nil, { CornerRadius = UDim.new(0, on and 16 or 20) })
+        end
+        Caret:SetOpen(on, Theme.Text, Theme.Faint)
         if NexusLib.ActiveWindow then
             NexusLib.ActiveWindow:PushDown(on)
         end
     end
     function IslandApi:SetStatus(text)
         Status.TextTransparency = 1
-        Status.Position = UDim2.fromOffset(88, 4)
+        Status.Position = UDim2.fromOffset(84, 4)
         Status.Text = text
-        Tween(Status, 0.3, nil, nil, { TextTransparency = 0, Position = UDim2.fromOffset(88, 0) })
+        Tween(Status, 0.28, nil, nil, { TextTransparency = 0, Position = UDim2.fromOffset(84, 0) })
+    end
+    function IslandApi:SetStatsVisible(visible)
+        IslandApi.ShowStats = visible
+        Stats.Visible = visible
     end
     function IslandApi:SetHiddenLabel(hidden)
         HideBtn.Text = hidden and "Show UI" or "Hide UI"
@@ -537,7 +682,7 @@ function NexusLib:CreateDynamicIsland(config)
     end
 
     Bar.MouseButton1Click:Connect(function() IslandApi:SetExpanded(not IslandApi.Expanded) end)
-    Island.MouseEnter:Connect(function() Tween(Island.UIStroke, 0.2, nil, nil, { Transparency = 0.86 }) end)
+    Island.MouseEnter:Connect(function() Tween(Island.UIStroke, 0.2, nil, nil, { Transparency = Theme.StrokeHover }) end)
     Island.MouseLeave:Connect(function() Tween(Island.UIStroke, 0.2, nil, nil, { Transparency = Theme.StrokeAlpha }) end)
     HideBtn.MouseButton1Click:Connect(function()
         if NexusLib.ActiveWindow then
@@ -550,11 +695,11 @@ function NexusLib:CreateDynamicIsland(config)
     RunService.RenderStepped:Connect(function()
         frames = frames + 1
         if os.clock() - last >= 1 then
-            local ping = 0
+            local ping = 19
             pcall(function()
                 ping = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
             end)
-            Stats.Text = frames .. " fps · " .. ping .. "ms"
+            Stats.Text = frames .. " fps <font color=\"#5a5a62\">·</font> " .. ping .. "ms"
             frames, last = 0, os.clock()
         end
     end)
@@ -563,7 +708,7 @@ function NexusLib:CreateDynamicIsland(config)
 end
 
 --------------------------------------------------------------------------
--- NOTIFICATIONS
+-- NOTIFICATIONS (stacked bottom-right, countdown bar, slide in / collapse out)
 --------------------------------------------------------------------------
 local NOTE_W, NOTE_H, NOTE_MAX = 260, 56, 5
 local NoteQueue = {}
@@ -594,25 +739,26 @@ function NexusLib:Notify(cfg)
         Size = UDim2.fromOffset(NOTE_W, 0), BackgroundTransparency = 1,
         LayoutOrder = math.floor(os.clock() * 1000), Parent = Stack,
     })
-    local Card = Surface("CanvasGroup", {
+    local Card = Surface("Frame", {
         AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 28, 1, 0),
-        Size = UDim2.fromOffset(NOTE_W, NOTE_H), GroupTransparency = 1, Parent = Slot,
+        Size = UDim2.fromOffset(NOTE_W, NOTE_H), ClipsDescendants = true, Parent = Slot,
     }, 12)
     Logo(Card, { Position = UDim2.fromOffset(12, 12), Size = UDim2.fromOffset(16, 16) })
     Label(Card, {
         Position = UDim2.fromOffset(38, 10), Size = UDim2.new(1, -50, 0, 16),
-        Font = Enum.Font.GothamBold, Text = cfg.Title or "Nexus", TextTruncate = Enum.TextTruncate.AtEnd,
+        Font = Enum.Font.GothamBold, TextSize = 12, Text = cfg.Title or "Nexus",
+        TextTruncate = Enum.TextTruncate.AtEnd,
     })
     Label(Card, {
         Position = UDim2.fromOffset(38, 27), Size = UDim2.new(1, -50, 0, 16),
-        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Dim,
-        Text = cfg.Content or cfg.Message or "",
+        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Dim, Text = cfg.Content or cfg.Message or "",
         TextTruncate = Enum.TextTruncate.AtEnd,
     })
-    local Bar = New("Frame", Merge(Soft(0.65), {
+    local Bar = New("Frame", {
         AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 2),
+        BackgroundColor3 = Theme.White, BackgroundTransparency = 0.65, BorderSizePixel = 0,
         Parent = Card,
-    }))
+    })
 
     local note = { Slot = Slot, Card = Card, Closed = false }
     function note:Close()
@@ -621,13 +767,13 @@ function NexusLib:Notify(cfg)
         for i, n in ipairs(NoteQueue) do
             if n == note then table.remove(NoteQueue, i) break end
         end
-        Tween(Card, 0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.In, {
-            Position = UDim2.new(0, 28, 1, 0), GroupTransparency = 1,
+        Tween(Card, 0.26, Enum.EasingStyle.Quart, Enum.EasingDirection.In, {
+            Position = UDim2.new(0, 32, 1, 0), BackgroundTransparency = 1,
         })
-        task.delay(0.18, function()
-            Tween(Slot, 0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(NOTE_W, 0) })
+        task.delay(0.16, function()
+            Tween(Slot, 0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(NOTE_W, 0) })
         end)
-        task.delay(0.5, function() Slot:Destroy() end)
+        task.delay(0.46, function() pcall(function() Slot:Destroy() end) end)
     end
 
     table.insert(NoteQueue, note)
@@ -636,8 +782,11 @@ function NexusLib:Notify(cfg)
     end
 
     Tween(Slot, 0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(NOTE_W, NOTE_H + 8) })
-    Tween(Card, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Position = UDim2.new(0, 0, 1, 0), GroupTransparency = 0 })
-    Tween(Bar, duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, { Size = UDim2.new(0, 0, 0, 2) })
+    Tween(Card, 0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Position = UDim2.new(0, 0, 1, 0) })
+    -- Countdown bar always runs at real duration even when ReduceMotion is enabled
+    TweenService:Create(Bar, TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, 0, 0, 2),
+    }):Play()
     task.delay(duration, function() note:Close() end)
     return note
 end
@@ -650,65 +799,65 @@ function NexusLib:CreateWindow(config)
     if config.Keybind then
         NexusLib.ToggleKey = config.Keybind
     end
-
-    -- Automatically ensure Dynamic Island is present
-    if config.NoIsland ~= true and not NexusLib.ActiveIsland then
-        pcall(function()
-            NexusLib:CreateDynamicIsland({ Title = config.Title or "Nexus", Status = "Ready" })
-        end)
-    end
-
+    DestroyExisting("Nexus_Window")
     local size = config.Size or UDim2.fromOffset(NexusLib.DefaultWindowSize.X, NexusLib.DefaultWindowSize.Y)
     local homeY = ISLAND_TOP + ISLAND_H + 12
 
     local Gui = New("ScreenGui", {
-        Name = "Nexus_Window", ResetOnSpawn = false, IgnoreGuiInset = true, Parent = GetSafeGui(),
+        Name = "Nexus_Window", DisplayOrder = 99990, ResetOnSpawn = false,
+        IgnoreGuiInset = true, Parent = GetSafeGui(),
     })
 
-    local Frame = Surface("CanvasGroup", {
+    -- Native Frame (not CanvasGroup) so all fonts, corners and 1px strokes render crisp at 100% resolution
+    local Frame = Surface("Frame", {
         AnchorPoint = Vector2.new(0.5, 0),
         Position = UDim2.new(0.5, 0, 0, homeY),
         Size = size,
-        GroupTransparency = 1,
+        ClipsDescendants = true,
         Parent = Gui,
     }, 14)
     local Pop = New("UIScale", { Scale = 0.96, Parent = Frame })
-    Tween(Frame, 0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { GroupTransparency = 0 })
-    Tween(Pop, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Scale = 1 })
+    Tween(Pop, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Scale = 1 })
 
-    local Window = { Tabs = {}, CurrentTab = nil, Gui = Gui, Visible = true, Pushed = false }
+    local Window = { Tabs = {}, CurrentTab = nil, Gui = Gui, Frame = Frame, Visible = true, Pushed = false }
     NexusLib.ActiveWindow = Window
     local savedPos = Frame.Position
 
-    local TitleBar = New("Frame", { Size = UDim2.new(1, 0, 0, 46), BackgroundTransparency = 1, Parent = Frame })
-    New("Frame", Merge(Soft(1 - 0.08), {
+    ---------------- title bar ----------------
+    local TitleBar = New("Frame", {
+        Size = UDim2.new(1, 0, 0, 46), BackgroundTransparency = 1, Parent = Frame,
+    })
+    -- 1px bottom divider
+    New("Frame", {
         AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 1),
-        Parent = TitleBar,
-    }))
+        BackgroundColor3 = Theme.Divider, BorderSizePixel = 0, Parent = TitleBar,
+    })
     Logo(TitleBar, { Position = UDim2.fromOffset(16, 14), Size = UDim2.fromOffset(18, 18) })
     local TitleText = Label(TitleBar, {
         Position = UDim2.fromOffset(44, 0), Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X,
-        Font = Enum.Font.GothamBold, Text = config.Title or "Nexus Hub",
+        Font = Enum.Font.GothamBold, TextSize = 13, Text = config.Title or "Nexus Hub",
     })
-    local subText = config.SubTitle or config.Subtitle or ""
     local Sub = Label(TitleBar, {
-        Position = UDim2.fromOffset(44, 0), Size = UDim2.new(0, 200, 1, 0),
-        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Faint, Text = subText,
+        Position = UDim2.fromOffset(118, 1), Size = UDim2.new(0, 200, 1, 0),
+        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Faint, Text = config.SubTitle or "Universal",
     })
-    task.defer(function()
-        Sub.Position = UDim2.fromOffset(44 + TitleText.AbsoluteSize.X + 8, 0)
-    end)
+    local function updateSubPos()
+        Sub.Position = UDim2.fromOffset(44 + TitleText.TextBounds.X + 8, 1)
+    end
+    TitleText:GetPropertyChangedSignal("TextBounds"):Connect(updateSubPos)
+    task.defer(updateSubPos)
 
-    local MinBtn = New("TextButton", Merge(Soft(1), {
+    local MinBtn = New("TextButton", {
         AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(26, 26),
+        BackgroundColor3 = Theme.Control, BackgroundTransparency = 1, BorderSizePixel = 0,
         AutoButtonColor = false, Text = "", Parent = TitleBar,
-    }), { Corner(7) })
-    local MinLine = New("Frame", Merge(Soft(0), {
-        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(10, 2),
-        BackgroundColor3 = Theme.Dim, Parent = MinBtn,
-    }), { Corner(1) })
+    }, { Corner(7) })
+    local MinLine = New("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(10, 1.5),
+        BackgroundColor3 = Theme.Dim, BorderSizePixel = 0, Parent = MinBtn,
+    }, { Corner(1) })
     MinBtn.MouseEnter:Connect(function()
-        Tween(MinBtn, 0.15, nil, nil, { BackgroundTransparency = Theme.ControlAlpha })
+        Tween(MinBtn, 0.15, nil, nil, { BackgroundTransparency = 0 })
         Tween(MinLine, 0.15, nil, nil, { BackgroundColor3 = Theme.Text })
     end)
     MinBtn.MouseLeave:Connect(function()
@@ -717,16 +866,26 @@ function NexusLib:CreateWindow(config)
     end)
     MinBtn.MouseButton1Click:Connect(function() Window:SetVisible(false) end)
 
+    -- drag by the title bar (double-click resets position to center)
     local dragging, dragStart, startPos = false, nil, nil
+    local lastClick = 0
     TitleBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            local now = os.clock()
+            if now - lastClick < 0.3 then
+                dragging = false
+                Window:ResetPosition()
+                lastClick = 0
+                return
+            end
+            lastClick = now
             dragging, dragStart, startPos = true, input.Position, Frame.Position
         end
     end)
     UserInputService.InputChanged:Connect(function(input)
         if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             local d = input.Position - dragStart
-            Frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+            Frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, math.max(8, startPos.Y.Offset + d.Y))
         end
     end)
     UserInputService.InputEnded:Connect(function(input)
@@ -735,23 +894,27 @@ function NexusLib:CreateWindow(config)
         end
     end)
 
+    ---------------- sidebar ----------------
     local Sidebar = New("Frame", {
         Position = UDim2.fromOffset(0, 46), Size = UDim2.new(0, 132, 1, -46),
         BackgroundTransparency = 1, Parent = Frame,
     })
-    New("Frame", Merge(Soft(1 - 0.08), {
+    -- 1px right divider
+    New("Frame", {
         AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.new(0, 1, 1, 0),
-        Parent = Sidebar,
-    }))
-    local Glide = New("Frame", Merge(Soft(Theme.ControlAlpha), {
-        Position = UDim2.fromOffset(8, 10), Size = UDim2.new(1, -16, 0, 32), Visible = false, Parent = Sidebar,
-    }), { Corner(8) })
-    New("Frame", Merge(Soft(0), {
+        BackgroundColor3 = Theme.Divider, BorderSizePixel = 0, Parent = Sidebar,
+    })
+    local Glide = New("Frame", {
+        Position = UDim2.fromOffset(8, 10), Size = UDim2.new(1, -16, 0, 32),
+        BackgroundColor3 = Theme.Control, BorderSizePixel = 0, Visible = false, Parent = Sidebar,
+    }, { Corner(8) })
+    New("Frame", {
         AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.fromScale(0, 0.5), Size = UDim2.fromOffset(2, 12),
-        BackgroundColor3 = Theme.Text, Parent = Glide,
-    }), { Corner(1) })
+        BackgroundColor3 = Theme.Text, BorderSizePixel = 0, Parent = Glide,
+    }, { Corner(1) })
     local TabList = New("Frame", {
-        Position = UDim2.fromOffset(8, 10), Size = UDim2.new(1, -16, 1, -20), BackgroundTransparency = 1, Parent = Sidebar,
+        Position = UDim2.fromOffset(8, 10), Size = UDim2.new(1, -16, 1, -20),
+        BackgroundTransparency = 1, Parent = Sidebar,
     }, {
         New("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }),
     })
@@ -760,6 +923,7 @@ function NexusLib:CreateWindow(config)
         BackgroundTransparency = 1, ClipsDescendants = true, Parent = Frame,
     })
 
+    ---------------- window methods ----------------
     function Window:SetVisible(on)
         if on == Window.Visible then return end
         Window.Visible = on
@@ -767,27 +931,28 @@ function NexusLib:CreateWindow(config)
         if island then island:SetHiddenLabel(not on) end
         if on then
             Frame.Visible = true
-            Tween(Frame, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Position = savedPos, GroupTransparency = 0 })
-            Tween(Pop, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Scale = 1 })
-            if island then island:SetStatus("Ready") end
+            Tween(Frame, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+                Position = savedPos, BackgroundTransparency = Theme.SurfaceAlpha,
+            })
+            Tween(Pop, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Scale = 1 })
+            if island then island:SetStatus("Farming") end
         else
             savedPos = Frame.Position
-            Tween(Frame, 0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.In, {
-                Position = UDim2.new(0.5, 0, 0, ISLAND_TOP), GroupTransparency = 1,
+            Tween(Frame, 0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.In, {
+                Position = UDim2.new(0.5, 0, 0, ISLAND_TOP), BackgroundTransparency = 0.85,
             })
-            Tween(Pop, 0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.In, { Scale = 0.3 })
-            task.delay(0.35, function()
+            Tween(Pop, 0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.In, { Scale = 0.25 })
+            task.delay(0.3, function()
                 if island then
                     island:Gulp()
                     island:SetStatus("Hidden")
                 end
             end)
-            task.delay(0.4, function()
+            task.delay(0.35, function()
                 if not Window.Visible then Frame.Visible = false end
             end)
         end
     end
-
     function Window:ToggleVisible()
         Window:SetVisible(not Window.Visible)
     end
@@ -830,7 +995,7 @@ function NexusLib:CreateWindow(config)
         })
         local text = Label(TabButton, {
             Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -16, 1, 0), Text = name,
-            TextColor3 = Theme.Dim, ZIndex = 2,
+            Font = Enum.Font.GothamMedium, TextSize = 12, TextColor3 = Theme.Dim, ZIndex = 2,
         })
         TabButton.MouseEnter:Connect(function() Tween(text, 0.15, nil, nil, { TextColor3 = Theme.Text }) end)
         TabButton.MouseLeave:Connect(function()
@@ -847,13 +1012,14 @@ function NexusLib:CreateWindow(config)
         }, {
             New("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }),
             New("UIPadding", {
-                PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 14),
-                PaddingRight = UDim.new(0, 14), PaddingBottom = UDim.new(0, 14),
+                PaddingTop = UDim.new(0, 10), PaddingLeft = UDim.new(0, 14),
+                PaddingRight = UDim.new(0, 14), PaddingBottom = UDim.new(0, 16),
             }),
         })
 
         local Tab = { Button = TabButton, Label = text, Page = Page, Index = index }
         local order = 0
+        local sectionCount = 0
         local function nextOrder()
             order = order + 1
             return order
@@ -868,7 +1034,7 @@ function NexusLib:CreateWindow(config)
             end
             local y = 10 + (index - 1) * 34
             if Glide.Visible then
-                Tween(Glide, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Position = UDim2.fromOffset(8, y) })
+                Tween(Glide, 0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Position = UDim2.fromOffset(8, y) })
             else
                 Glide.Position = UDim2.fromOffset(8, y)
                 Glide.Visible = true
@@ -877,99 +1043,121 @@ function NexusLib:CreateWindow(config)
             local dir = (prev and prev.Index > index) and -1 or 1
             Page.Position = UDim2.fromOffset(18 * dir, 0)
             Page.Visible = true
-            Tween(Page, 0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Position = UDim2.fromOffset(0, 0) })
+            Tween(Page, 0.36, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Position = UDim2.fromOffset(0, 0) })
             Window.CurrentTab = Tab
         end
         TabButton.MouseButton1Click:Connect(function() Tab:Select() end)
 
+        -- one row: title (+ description) on the left, control on the right
         local function Item(cfg, rightWidth)
-            cfg = cfg or {}
             local hasDesc = cfg.Description ~= nil and cfg.Description ~= ""
             local h = hasDesc and 46 or 42
-            local row = New("Frame", Merge(Soft(Theme.RowAlpha), {
-                Size = UDim2.new(1, 0, 0, h), LayoutOrder = nextOrder(), Parent = Page,
-            }), { Corner(9) })
+            local row = New("Frame", {
+                Size = UDim2.new(1, 0, 0, h),
+                BackgroundColor3 = Theme.Row,
+                BorderSizePixel = 0,
+                LayoutOrder = nextOrder(),
+                Parent = Page,
+            }, { Corner(9) })
             local w = -(24 + (rightWidth or 110))
             Label(row, {
-                Position = UDim2.fromOffset(12, hasDesc and 8 or 0), Size = UDim2.new(1, w, 0, hasDesc and 16 or h),
-                Text = cfg.Name or "Item", TextTruncate = Enum.TextTruncate.AtEnd,
+                Position = UDim2.fromOffset(12, hasDesc and 8 or 0),
+                Size = UDim2.new(1, w, 0, hasDesc and 15 or h),
+                Font = Enum.Font.GothamMedium,
+                TextSize = 12,
+                Text = cfg.Name or "Item",
+                TextTruncate = Enum.TextTruncate.AtEnd,
             })
             if hasDesc then
                 Label(row, {
-                    Position = UDim2.fromOffset(12, 24), Size = UDim2.new(1, w, 0, 14),
-                    Font = Enum.Font.Gotham, TextSize = 10, TextColor3 = Theme.Dim, Text = cfg.Description,
+                    Position = UDim2.fromOffset(12, 24),
+                    Size = UDim2.new(1, w, 0, 14),
+                    Font = Enum.Font.Gotham,
+                    TextSize = 10,
+                    TextColor3 = Theme.Dim,
+                    Text = cfg.Description,
                     TextTruncate = Enum.TextTruncate.AtEnd,
                 })
             end
             local right = New("Frame", {
-                AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0),
-                Size = UDim2.fromOffset(rightWidth or 110, 28), BackgroundTransparency = 1, Parent = row,
+                AnchorPoint = Vector2.new(1, 0.5),
+                Position = UDim2.new(1, -10, 0.5, 0),
+                Size = UDim2.fromOffset(rightWidth or 110, 28),
+                BackgroundTransparency = 1,
+                Parent = row,
             })
             return row, right
         end
 
         local function Hover(row, hit)
-            hit.MouseEnter:Connect(function() Tween(row, 0.15, nil, nil, { BackgroundTransparency = Theme.RowHoverAlpha }) end)
-            hit.MouseLeave:Connect(function() Tween(row, 0.15, nil, nil, { BackgroundTransparency = Theme.RowAlpha }) end)
+            hit.MouseEnter:Connect(function() Tween(row, 0.15, nil, nil, { BackgroundColor3 = Theme.RowHover }) end)
+            hit.MouseLeave:Connect(function() Tween(row, 0.15, nil, nil, { BackgroundColor3 = Theme.Row }) end)
         end
 
         function Tab:CreateSection(title)
-            local lbl = Label(Page, {
-                Size = UDim2.new(1, 0, 0, 26), Text = string.upper(tostring(title or "Section")), TextSize = 10,
-                Font = Enum.Font.GothamMedium, TextColor3 = Theme.Faint,
-                TextYAlignment = Enum.TextYAlignment.Bottom, LayoutOrder = nextOrder(),
+            sectionCount = sectionCount + 1
+            local topGap = sectionCount > 1 and 8 or 0
+            local wrap = New("Frame", {
+                Size = UDim2.new(1, 0, 0, 20 + topGap),
+                BackgroundTransparency = 1,
+                LayoutOrder = nextOrder(),
+                Parent = Page,
             })
-            local sectionObj = {
-                _label = lbl,
-                _tab = Tab,
-                CreateToggle = function(_, cfg) return Tab:CreateToggle(cfg) end,
-                CreateButton = function(_, cfg) return Tab:CreateButton(cfg) end,
-                CreateSlider = function(_, cfg) return Tab:CreateSlider(cfg) end,
-                CreateDropdown = function(_, cfg) return Tab:CreateDropdown(cfg) end,
-                CreateMultiDropdown = function(_, cfg) return Tab:CreateMultiDropdown(cfg) end,
-                CreateInput = function(_, cfg) return Tab:CreateInput(cfg) end,
-                CreateTextbox = function(_, cfg) return Tab:CreateInput(cfg) end,
-                CreateKeybind = function(_, cfg) return Tab:CreateKeybind(cfg) end,
-                CreateLabel = function(_, textVal) return Tab:CreateLabel(textVal) end,
-                CreateHeader = function(_, textVal) return Tab:CreateHeader(textVal) end,
-                CreateActionRow = function(_, actions) return Tab:CreateActionRow(actions) end,
-                CreateCardGroup = function(_, cards) return Tab:CreateCardGroup(cards) end,
-                CreateBlock = function(_, cfg) return Tab:CreateBlock(cfg) end,
-                CreateFeaturedCard = function(_, cfg) return Tab:CreateFeaturedCard(cfg) end,
-                CreateStatRow = function(_, statTitle, statVal) return Tab:CreateStatRow(statTitle, statVal) end,
-            }
-            return setmetatable(sectionObj, {
-                __index = function(t, k)
-                    if Tab[k] ~= nil and type(Tab[k]) == "function" then
-                        return function(_, ...) return Tab[k](Tab, ...) end
-                    end
-                    return rawget(t, k)
-                end,
+            Label(wrap, {
+                Position = UDim2.fromOffset(2, topGap + 2),
+                Size = UDim2.new(1, -4, 0, 16),
+                Text = string.upper(title),
+                TextSize = 10,
+                Font = Enum.Font.GothamMedium,
+                TextColor3 = Theme.Faint,
             })
+
+            local sec = {}
+            function sec:CreateToggle(...) return Tab:CreateToggle(...) end
+            function sec:CreateSlider(...) return Tab:CreateSlider(...) end
+            function sec:CreateButton(...) return Tab:CreateButton(...) end
+            function sec:CreateInput(...) return Tab:CreateInput(...) end
+            function sec:CreateTextbox(...) return Tab:CreateInput(...) end
+            function sec:CreateDropdown(...) return Tab:CreateDropdown(...) end
+            function sec:CreateMultiDropdown(...) return Tab:CreateMultiDropdown(...) end
+            function sec:CreateKeybind(...) return Tab:CreateKeybind(...) end
+            function sec:CreateLabel(...) return Tab:CreateLabel(...) end
+            function sec:CreateHeader(...) return Tab:CreateHeader(...) end
+            function sec:CreateActionRow(...) return Tab:CreateActionRow(...) end
+            function sec:CreateCardGroup(...) return Tab:CreateCardGroup(...) end
+            function sec:CreateStatRow(...) return Tab:CreateStatRow(...) end
+            function sec:CreateBlock(...) return Tab:CreateBlock(...) end
+            function sec:CreateFeaturedCard(...) return Tab:CreateFeaturedCard(...) end
+            return sec
         end
-        Tab.Section = Tab.CreateSection
 
         function Tab:CreateToggle(cfg)
-            cfg = cfg or {}
             local state = cfg.Default or false
             local row, right = Item(cfg, 32)
-            local track = New("Frame", Merge(Soft(state and 0 or 0.88), {
-                AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(32, 18),
-                BackgroundColor3 = state and Theme.Text or Theme.White, Parent = right,
-            }), { Corner(9) })
+            local track = New("Frame", {
+                AnchorPoint = Vector2.new(1, 0.5),
+                Position = UDim2.new(1, 0, 0.5, 0),
+                Size = UDim2.fromOffset(32, 18),
+                BackgroundColor3 = state and Theme.Text or Theme.ToggleOff,
+                BorderSizePixel = 0,
+                Parent = right,
+            }, { Corner(9) })
             local knob = New("Frame", {
-                AnchorPoint = Vector2.new(0, 0.5), Position = state and UDim2.new(0, 16, 0.5, 0) or UDim2.new(0, 2, 0.5, 0),
-                Size = UDim2.fromOffset(14, 14), BackgroundColor3 = state and Theme.Surface or Theme.Knob,
-                BorderSizePixel = 0, Parent = track,
+                AnchorPoint = Vector2.new(0, 0.5),
+                Position = state and UDim2.new(0, 16, 0.5, 0) or UDim2.new(0, 2, 0.5, 0),
+                Size = UDim2.fromOffset(14, 14),
+                BackgroundColor3 = state and Theme.Surface or Theme.Knob,
+                BorderSizePixel = 0,
+                Parent = track,
             }, { Corner(7) })
 
             local Toggle = {}
             function Toggle:Set(value, silent)
-                state = value == true
+                state = value
                 Tween(track, 0.22, nil, nil, {
-                    BackgroundColor3 = state and Theme.Text or Theme.White, BackgroundTransparency = state and 0 or 0.88,
+                    BackgroundColor3 = state and Theme.Text or Theme.ToggleOff,
                 })
-                Tween(knob, 0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+                Tween(knob, 0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
                     Position = state and UDim2.new(0, 16, 0.5, 0) or UDim2.new(0, 2, 0.5, 0),
                     BackgroundColor3 = state and Theme.Surface or Theme.Knob,
                 })
@@ -986,23 +1174,22 @@ function NexusLib:CreateWindow(config)
         end
 
         function Tab:CreateSlider(cfg)
-            cfg = cfg or {}
             local min, max, step = cfg.Min or 0, cfg.Max or 100, cfg.Step or 1
             local value = math.clamp(cfg.Default or min, min, max)
             local _, right = Item(cfg, 180)
 
             local valueLabel = Label(right, {
-                Size = UDim2.new(0, 30, 1, 0), TextXAlignment = Enum.TextXAlignment.Right,
+                Size = UDim2.new(0, 28, 1, 0), TextXAlignment = Enum.TextXAlignment.Right,
                 Font = Enum.Font.Code, TextSize = 10, TextColor3 = Theme.Dim, Text = tostring(value),
             })
             local hit = New("TextButton", {
-                Position = UDim2.fromOffset(40, 0), Size = UDim2.new(1, -40, 1, 0),
-                BackgroundTransparency = 1, Text = "", Parent = right,
+                Position = UDim2.fromOffset(38, 0), Size = UDim2.new(1, -38, 1, 0),
+                BackgroundTransparency = 1, Text = "", AutoButtonColor = false, Parent = right,
             })
-            local track = New("Frame", Merge(Soft(0.88), {
+            local track = New("Frame", {
                 AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.fromScale(0, 0.5), Size = UDim2.new(1, 0, 0, 3),
-                Parent = hit,
-            }), { Corner(2) })
+                BackgroundColor3 = Theme.ToggleOff, BorderSizePixel = 0, Parent = hit,
+            }, { Corner(2) })
             local fill = New("Frame", {
                 Size = UDim2.fromScale((value - min) / (max - min), 1), BackgroundColor3 = Theme.Text,
                 BorderSizePixel = 0, Parent = track,
@@ -1026,7 +1213,7 @@ function NexusLib:CreateWindow(config)
 
             local sliding = false
             local function fromX(x)
-                local p = math.clamp((x - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+                local p = math.clamp((x - track.AbsolutePosition.X) / math.max(1, track.AbsoluteSize.X), 0, 1)
                 Slider:Set(min + (max - min) * p)
             end
             hit.InputBegan:Connect(function(input)
@@ -1051,35 +1238,42 @@ function NexusLib:CreateWindow(config)
         end
 
         function Tab:CreateButton(cfg)
-            cfg = cfg or {}
-            local _, right = Item(cfg, 72)
-            local b = Button(right, cfg.Text or cfg.Name or "Run", {
-                AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(72, 28),
-            })
+            local text = cfg.Text or "Go"
+            local w = math.max(54, #text * 7 + 32)
+            local _, right = Item(cfg, w)
+            local b = Button(right, text, {
+                AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(w, 28),
+            }, false)
             b.MouseButton1Click:Connect(function()
                 if cfg.Callback then task.spawn(cfg.Callback) end
             end)
-            return {
-                Set = function(_, textVal) b.Text = tostring(textVal) end,
-            }
+            return b
         end
 
         function Tab:CreateInput(cfg)
-            cfg = cfg or {}
             local _, right = Item(cfg, 150)
-            local box = New("TextBox", Merge(Soft(Theme.ControlAlpha), {
-                Size = UDim2.fromScale(1, 1), Text = cfg.Default or "", PlaceholderText = cfg.Placeholder or "Type...",
-                PlaceholderColor3 = Theme.Faint, Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Text,
-                TextXAlignment = Enum.TextXAlignment.Left, ClearTextOnFocus = false, Parent = right,
-            }), { Corner(7), New("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) }) })
+            local box = New("TextBox", {
+                Size = UDim2.fromScale(1, 1),
+                BackgroundColor3 = Theme.Control,
+                BorderSizePixel = 0,
+                Text = cfg.Default or "",
+                PlaceholderText = cfg.Placeholder or "Username",
+                PlaceholderColor3 = Theme.Faint,
+                Font = Enum.Font.Gotham,
+                TextSize = 11,
+                TextColor3 = Theme.Text,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ClearTextOnFocus = false,
+                Parent = right,
+            }, { Corner(7), New("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) }) })
             local stroke = Rim(1)
             stroke.Parent = box
-            box.Focused:Connect(function() Tween(stroke, 0.15, nil, nil, { Transparency = 0.86 }) end)
+            box.Focused:Connect(function() Tween(stroke, 0.15, nil, nil, { Transparency = Theme.StrokeHover }) end)
             box.FocusLost:Connect(function(enter)
                 Tween(stroke, 0.15, nil, nil, { Transparency = 1 })
                 if cfg.Callback then
-                    task.spawn(cfg.Callback, box.Text)
-                    if enter and cfg.ClearOnSubmit == true then box.Text = "" end
+                    task.spawn(cfg.Callback, box.Text, enter)
+                    if enter and cfg.ClearOnSubmit then box.Text = "" end
                 end
             end)
             local Input = {}
@@ -1087,62 +1281,86 @@ function NexusLib:CreateWindow(config)
             function Input:Get() return box.Text end
             return Input
         end
-        Tab.CreateTextbox = Tab.CreateInput
+
+        function Tab:CreateTextbox(cfg)
+            return Tab:CreateInput(cfg)
+        end
 
         function Tab:CreateDropdown(cfg)
-            cfg = cfg or {}
             local options = cfg.Options or {}
             local value = cfg.Default or options[1]
-            local _, right = Item(cfg, 110)
-            local field = Button(right, "", { Size = UDim2.fromScale(1, 1) })
+            local _, right = Item(cfg, 106)
+            local field = Button(right, "", { Size = UDim2.fromScale(1, 1) }, false)
             local valueLabel = Label(field, {
-                Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -28, 1, 0), TextSize = 11, Text = tostring(value or ""),
+                Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -28, 1, 0),
+                Font = Enum.Font.GothamMedium, TextSize = 11, Text = tostring(value),
             })
-            local arrow = Label(field, {
-                AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.fromOffset(12, 12),
-                TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = Theme.Dim, TextSize = 11, Text = "▾",
-            })
+            local arrow = Chevron(field, {
+                AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
+            }, Theme.Dim)
 
             local menu, closeConn
             local function close()
                 if closeConn then closeConn:Disconnect() closeConn = nil end
-                Tween(arrow, 0.25, nil, nil, { Rotation = 0 })
+                arrow:SetOpen(false, Theme.Text, Theme.Dim)
                 if menu then
                     local m = menu
                     menu = nil
                     Tween(m, 0.18, nil, nil, { Size = UDim2.fromOffset(m.Size.X.Offset, 0) })
-                    task.delay(0.2, function() m:Destroy() end)
+                    task.delay(0.2, function() pcall(function() m:Destroy() end) end)
                 end
             end
-            local function set(v, silent)
+            local function set(v)
                 value = v
-                valueLabel.Text = tostring(v or "")
-                if not silent and cfg.Callback then task.spawn(cfg.Callback, v) end
+                valueLabel.Text = tostring(v)
+                if cfg.Callback then task.spawn(cfg.Callback, v) end
             end
 
             field.MouseButton1Click:Connect(function()
                 if menu then close() return end
-                Tween(arrow, 0.25, nil, nil, { Rotation = 180 })
+                arrow:SetOpen(true, Theme.Text, Theme.Dim)
                 local width = math.max(120, field.AbsoluteSize.X)
                 local height = #options * 28 + 8
+                local ox = field.AbsolutePosition.X - Gui.AbsolutePosition.X
+                local oy = field.AbsolutePosition.Y - Gui.AbsolutePosition.Y
                 menu = New("Frame", {
-                    Position = UDim2.fromOffset(field.AbsolutePosition.X + field.AbsoluteSize.X - width, field.AbsolutePosition.Y + field.AbsoluteSize.Y + 6),
-                    Size = UDim2.fromOffset(width, 0), BackgroundColor3 = Theme.Menu,
-                    BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 50, Parent = Gui,
-                }, { Corner(9), Rim(Theme.StrokeAlpha), New("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }), New("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder }) })
-                Tween(menu, 0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(width, height) })
+                    Position = UDim2.fromOffset(ox + field.AbsoluteSize.X - width, oy + field.AbsoluteSize.Y + 6),
+                    Size = UDim2.fromOffset(width, 0),
+                    BackgroundColor3 = Theme.Menu,
+                    BorderSizePixel = 0,
+                    ClipsDescendants = true,
+                    ZIndex = 50,
+                    Parent = Gui,
+                }, {
+                    Corner(9),
+                    Rim(Theme.StrokeAlpha),
+                    New("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }),
+                    New("UIListLayout", { Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder }),
+                })
+                Tween(menu, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(width, height) })
                 for i, option in ipairs(options) do
                     local selected = option == value
-                    local item = New("TextButton", Merge(Soft(selected and Theme.ControlAlpha or 1), {
-                        Size = UDim2.new(1, 0, 0, 28), AutoButtonColor = false,
-                        Text = tostring(option), Font = Enum.Font.GothamMedium, TextSize = 11,
-                        TextColor3 = selected and Theme.Text or Theme.Dim, TextXAlignment = Enum.TextXAlignment.Left,
-                        LayoutOrder = i, ZIndex = 51, Parent = menu,
-                    }), { Corner(6), New("UIPadding", { PaddingLeft = UDim.new(0, 10) }) })
-                    item.MouseEnter:Connect(function() Tween(item, 0.1, nil, nil, { BackgroundTransparency = Theme.ControlAlpha, TextColor3 = Theme.Text }) end)
+                    local item = New("TextButton", {
+                        Size = UDim2.new(1, 0, 0, 27),
+                        BackgroundColor3 = Theme.Control,
+                        BackgroundTransparency = selected and 0 or 1,
+                        BorderSizePixel = 0,
+                        AutoButtonColor = false,
+                        Text = tostring(option),
+                        Font = Enum.Font.GothamMedium,
+                        TextSize = 11,
+                        TextColor3 = selected and Theme.Text or Theme.Dim,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        LayoutOrder = i,
+                        ZIndex = 51,
+                        Parent = menu,
+                    }, { Corner(6), New("UIPadding", { PaddingLeft = UDim.new(0, 10) }) })
+                    item.MouseEnter:Connect(function()
+                        Tween(item, 0.1, nil, nil, { BackgroundTransparency = 0, TextColor3 = Theme.Text })
+                    end)
                     item.MouseLeave:Connect(function()
                         Tween(item, 0.1, nil, nil, {
-                            BackgroundTransparency = selected and Theme.ControlAlpha or 1,
+                            BackgroundTransparency = selected and 0 or 1,
                             TextColor3 = selected and Theme.Text or Theme.Dim,
                         })
                     end)
@@ -1166,100 +1384,110 @@ function NexusLib:CreateWindow(config)
             end)
 
             local Dropdown = {}
-            function Dropdown:Set(v, silent) set(v, silent) end
+            function Dropdown:Set(v) set(v) end
             function Dropdown:Get() return value end
             function Dropdown:Refresh(newOptions)
                 options = newOptions or {}
                 if not table.find(options, value) then
-                    set(options[1])
+                    set(options[1] or "")
                 end
             end
             return Dropdown
         end
 
         function Tab:CreateMultiDropdown(cfg)
-            cfg = cfg or {}
             local options = cfg.Options or {}
             local selectedMap = {}
-            local defaults = cfg.Default or {}
-            if type(defaults) == "table" then
-                for _, v in ipairs(defaults) do selectedMap[tostring(v)] = true end
-            elseif defaults ~= nil then
-                selectedMap[tostring(defaults)] = true
+            if type(cfg.Default) == "table" then
+                for k, v in pairs(cfg.Default) do
+                    if type(k) == "number" then
+                        selectedMap[v] = true
+                    elseif v == true then
+                        selectedMap[k] = true
+                    end
+                end
             end
 
-            local _, right = Item(cfg, 120)
-            local field = Button(right, "", { Size = UDim2.fromScale(1, 1) })
+            local _, right = Item(cfg, 116)
+            local field = Button(right, "", { Size = UDim2.fromScale(1, 1) }, false)
             local valueLabel = Label(field, {
-                Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -28, 1, 0), TextSize = 11, Text = "0 Selected",
+                Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -28, 1, 0),
+                Font = Enum.Font.GothamMedium, TextSize = 11, Text = "0 selected",
             })
-            local arrow = Label(field, {
-                AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.fromOffset(12, 12),
-                TextXAlignment = Enum.TextXAlignment.Center, TextColor3 = Theme.Dim, TextSize = 11, Text = "▾",
-            })
+            local arrow = Chevron(field, {
+                AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
+            }, Theme.Dim)
 
-            local function getSelectedList()
-                local list = {}
-                for opt, state in pairs(selectedMap) do
-                    if state then table.insert(list, opt) end
+            local function updateCount()
+                local count = 0
+                for _, opt in ipairs(options) do
+                    if selectedMap[opt] then count = count + 1 end
                 end
-                return list
+                valueLabel.Text = count == 0 and "None" or (count .. " selected")
             end
-
-            local function updateDisplay()
-                local list = getSelectedList()
-                if #list == 0 then
-                    valueLabel.Text = "None"
-                elseif #list == 1 then
-                    valueLabel.Text = list[1]
-                else
-                    valueLabel.Text = #list .. " Selected"
-                end
-            end
-            updateDisplay()
+            updateCount()
 
             local menu, closeConn
             local function close()
                 if closeConn then closeConn:Disconnect() closeConn = nil end
-                Tween(arrow, 0.25, nil, nil, { Rotation = 0 })
+                arrow:SetOpen(false, Theme.Text, Theme.Dim)
                 if menu then
                     local m = menu
                     menu = nil
                     Tween(m, 0.18, nil, nil, { Size = UDim2.fromOffset(m.Size.X.Offset, 0) })
-                    task.delay(0.2, function() m:Destroy() end)
+                    task.delay(0.2, function() pcall(function() m:Destroy() end) end)
                 end
             end
 
             field.MouseButton1Click:Connect(function()
                 if menu then close() return end
-                Tween(arrow, 0.25, nil, nil, { Rotation = 180 })
+                arrow:SetOpen(true, Theme.Text, Theme.Dim)
                 local width = math.max(130, field.AbsoluteSize.X)
                 local height = #options * 28 + 8
+                local ox = field.AbsolutePosition.X - Gui.AbsolutePosition.X
+                local oy = field.AbsolutePosition.Y - Gui.AbsolutePosition.Y
                 menu = New("Frame", {
-                    Position = UDim2.fromOffset(field.AbsolutePosition.X + field.AbsoluteSize.X - width, field.AbsolutePosition.Y + field.AbsoluteSize.Y + 6),
-                    Size = UDim2.fromOffset(width, 0), BackgroundColor3 = Theme.Menu,
-                    BorderSizePixel = 0, ClipsDescendants = true, ZIndex = 50, Parent = Gui,
-                }, { Corner(9), Rim(Theme.StrokeAlpha), New("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }), New("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder }) })
-                Tween(menu, 0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(width, height) })
+                    Position = UDim2.fromOffset(ox + field.AbsoluteSize.X - width, oy + field.AbsoluteSize.Y + 6),
+                    Size = UDim2.fromOffset(width, 0),
+                    BackgroundColor3 = Theme.Menu,
+                    BorderSizePixel = 0,
+                    ClipsDescendants = true,
+                    ZIndex = 50,
+                    Parent = Gui,
+                }, {
+                    Corner(9),
+                    Rim(Theme.StrokeAlpha),
+                    New("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }),
+                    New("UIListLayout", { Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder }),
+                })
+                Tween(menu, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(width, height) })
 
                 for i, option in ipairs(options) do
-                    local optStr = tostring(option)
-                    local isSel = selectedMap[optStr] == true
-                    local item = New("TextButton", Merge(Soft(isSel and Theme.ControlAlpha or 1), {
-                        Size = UDim2.new(1, 0, 0, 28), AutoButtonColor = false,
-                        Text = (isSel and "✓ " or "   ") .. optStr, Font = Enum.Font.GothamMedium, TextSize = 11,
-                        TextColor3 = isSel and Theme.Text or Theme.Dim, TextXAlignment = Enum.TextXAlignment.Left,
-                        LayoutOrder = i, ZIndex = 51, Parent = menu,
-                    }), { Corner(6), New("UIPadding", { PaddingLeft = UDim.new(0, 8) }) })
+                    local isChecked = selectedMap[option] == true
+                    local item = New("TextButton", {
+                        Size = UDim2.new(1, 0, 0, 27),
+                        BackgroundColor3 = Theme.Control,
+                        BackgroundTransparency = isChecked and 0 or 1,
+                        BorderSizePixel = 0,
+                        AutoButtonColor = false,
+                        Text = (isChecked and "[x]  " or "[ ]  ") .. tostring(option),
+                        Font = Enum.Font.GothamMedium,
+                        TextSize = 11,
+                        TextColor3 = isChecked and Theme.Text or Theme.Dim,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        LayoutOrder = i,
+                        ZIndex = 51,
+                        Parent = menu,
+                    }, { Corner(6), New("UIPadding", { PaddingLeft = UDim.new(0, 8) }) })
 
                     item.MouseButton1Click:Connect(function()
-                        selectedMap[optStr] = not selectedMap[optStr]
-                        local nowSel = selectedMap[optStr] == true
-                        item.Text = (nowSel and "✓ " or "   ") .. optStr
-                        item.TextColor3 = nowSel and Theme.Text or Theme.Dim
-                        item.BackgroundTransparency = nowSel and Theme.ControlAlpha or 1
-                        updateDisplay()
-                        if cfg.Callback then task.spawn(cfg.Callback, getSelectedList()) end
+                        selectedMap[option] = not selectedMap[option]
+                        local checked = selectedMap[option] == true
+                        item.Text = (checked and "[x]  " or "[ ]  ") .. tostring(option)
+                        item.TextColor3 = checked and Theme.Text or Theme.Dim
+                        item.BackgroundTransparency = checked and 0 or 1
+                        updateCount()
+                        if cfg.Callback then task.spawn(cfg.Callback, selectedMap) end
                     end)
                 end
 
@@ -1277,39 +1505,51 @@ function NexusLib:CreateWindow(config)
                 end)
             end)
 
-            local Multi = {}
-            function Multi:Set(list, silent)
+            local MultiDropdown = {}
+            function MultiDropdown:Set(tbl)
                 selectedMap = {}
-                if type(list) == "table" then
-                    for _, v in ipairs(list) do selectedMap[tostring(v)] = true end
+                if type(tbl) == "table" then
+                    for k, v in pairs(tbl) do
+                        if type(k) == "number" then selectedMap[v] = true
+                        elseif v == true then selectedMap[k] = true end
+                    end
                 end
-                updateDisplay()
-                if not silent and cfg.Callback then task.spawn(cfg.Callback, getSelectedList()) end
+                updateCount()
+                if cfg.Callback then task.spawn(cfg.Callback, selectedMap) end
             end
-            function Multi:Get() return getSelectedList() end
-            function Multi:Refresh(newOptions)
+            function MultiDropdown:Get() return selectedMap end
+            function MultiDropdown:Refresh(newOptions)
                 options = newOptions or {}
+                local newMap = {}
+                for _, opt in ipairs(options) do
+                    if selectedMap[opt] then newMap[opt] = true end
+                end
+                selectedMap = newMap
+                updateCount()
             end
-            return Multi
+            return MultiDropdown
         end
 
         function Tab:CreateKeybind(cfg)
-            cfg = cfg or {}
             local key = cfg.Default or Enum.KeyCode.RightShift
             local _, right = Item(cfg, 96)
-            local field = Button(right, key.Name, { Size = UDim2.fromScale(1, 1), Font = Enum.Font.Code, TextSize = 10 })
+            local field = Button(right, key.Name, { Size = UDim2.fromScale(1, 1), Font = Enum.Font.Code, TextSize = 10 }, false)
+            local stroke = Rim(1)
+            stroke.Parent = field
             local blink
             field.MouseButton1Click:Connect(function()
                 if NexusLib.Listening then return end
                 NexusLib.Listening = true
                 field.Text = "..."
-                blink = TweenService:Create(field, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { TextTransparency = 0.6 })
+                Tween(stroke, 0.15, nil, nil, { Transparency = Theme.StrokeHover })
+                blink = TweenService:Create(field, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { TextTransparency = 0.5 })
                 blink:Play()
                 local conn
                 conn = UserInputService.InputBegan:Connect(function(input)
                     if input.UserInputType == Enum.UserInputType.Keyboard then
                         conn:Disconnect()
                         blink:Cancel()
+                        Tween(stroke, 0.15, nil, nil, { Transparency = 1 })
                         field.TextTransparency = 0
                         key = input.KeyCode
                         field.Text = key.Name
@@ -1320,103 +1560,180 @@ function NexusLib:CreateWindow(config)
             end)
             local Keybind = {}
             function Keybind:Get() return key end
-            function Keybind:Set(k)
-                key = k
-                field.Text = key.Name
-            end
             return Keybind
         end
 
-        function Tab:CreateLabel(textVal)
-            local row = New("Frame", Merge(Soft(Theme.RowAlpha), {
-                Size = UDim2.new(1, 0, 0, 32), LayoutOrder = nextOrder(), Parent = Page,
-            }), { Corner(8) })
+        function Tab:CreateLabel(textOrCfg)
+            local text = type(textOrCfg) == "table" and (textOrCfg.Text or textOrCfg.Name or "") or tostring(textOrCfg)
+            local row = New("Frame", {
+                Size = UDim2.new(1, 0, 0, 28),
+                BackgroundTransparency = 1,
+                LayoutOrder = nextOrder(),
+                Parent = Page,
+            })
             local lbl = Label(row, {
-                Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -24, 1, 0),
-                Text = tostring(textVal or ""), TextColor3 = Theme.Dim, Font = Enum.Font.Gotham,
+                Position = UDim2.fromOffset(12, 0),
+                Size = UDim2.new(1, -24, 1, 0),
+                Font = Enum.Font.GothamMedium,
+                TextSize = 11,
+                TextColor3 = Theme.Dim,
+                Text = text,
             })
-            return {
-                _frame = row,
-                Set = function(_, newText) lbl.Text = tostring(newText or "") end,
-            }
-        end
-
-        function Tab:CreateHeader(textVal)
-            return Label(Page, {
-                Size = UDim2.new(1, 0, 0, 30), Text = string.upper(tostring(textVal or "")),
-                Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = Theme.Text,
-                TextYAlignment = Enum.TextYAlignment.Bottom, LayoutOrder = nextOrder(),
-            })
-        end
-
-        function Tab:CreateActionRow(actions)
-            actions = actions or {}
-            local count = #actions
-            local row = New("Frame", {
-                Size = UDim2.new(1, 0, 0, 36), BackgroundTransparency = 1, LayoutOrder = nextOrder(), Parent = Page,
-            }, {
-                New("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6) }),
-            })
-            local results = {}
-            for i, act in ipairs(actions) do
-                local w = (1 / count)
-                local b = Button(row, act.Name or "Action", {
-                    Size = UDim2.new(w, -((count - 1) * 6 / count), 1, 0),
-                })
-                b.MouseButton1Click:Connect(function()
-                    if act.Callback then task.spawn(act.Callback) end
-                end)
-                table.insert(results, b)
+            local LabelObj = {}
+            function LabelObj:Set(newText)
+                lbl.Text = tostring(newText)
             end
-            return results
+            return LabelObj
         end
 
-        function Tab:CreateCardGroup(cards)
-            cards = cards or {}
-            local count = #cards
-            local row = New("Frame", {
-                Size = UDim2.new(1, 0, 0, 42), BackgroundTransparency = 1, LayoutOrder = nextOrder(), Parent = Page,
-            }, {
-                New("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6) }),
-            })
-            local results = {}
-            for i, card in ipairs(cards) do
-                local w = (1 / count)
-                local b = Button(row, card.Title or card.Name or "Card", {
-                    Size = UDim2.new(w, -((count - 1) * 6 / count), 1, 0),
-                })
-                b.MouseButton1Click:Connect(function()
-                    if card.Callback then task.spawn(card.Callback) end
-                end)
-                table.insert(results, b)
-            end
-            return results
-        end
-
-        function Tab:CreateStatRow(titleVal, statVal)
-            local row = New("Frame", Merge(Soft(Theme.RowAlpha), {
-                Size = UDim2.new(1, 0, 0, 36), LayoutOrder = nextOrder(), Parent = Page,
-            }), { Corner(8) })
-            Label(row, {
-                Position = UDim2.fromOffset(12, 0), Size = UDim2.new(0.5, -12, 1, 0),
-                Text = tostring(titleVal or ""), TextColor3 = Theme.Dim,
-            })
-            local valLbl = Label(row, {
-                AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 0), Size = UDim2.new(0.5, -12, 1, 0),
-                Text = tostring(statVal or ""), TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Right,
-                Font = Enum.Font.Code,
-            })
-            return {
-                _frame = row,
-                Set = function(_, v) valLbl.Text = tostring(v or "") end,
-            }
-        end
-
-        function Tab:CreateBlock(cfg)
+        function Tab:CreateHeader(cfg)
             cfg = cfg or {}
-            return Tab:CreateButton(cfg)
+            local hasSub = cfg.Subtitle ~= nil and cfg.Subtitle ~= ""
+            local h = hasSub and 38 or 28
+            local wrap = New("Frame", {
+                Size = UDim2.new(1, 0, 0, h),
+                BackgroundTransparency = 1,
+                LayoutOrder = nextOrder(),
+                Parent = Page,
+            })
+            Label(wrap, {
+                Position = UDim2.fromOffset(2, 2),
+                Size = UDim2.new(1, -4, 0, 16),
+                Font = Enum.Font.GothamBold,
+                TextSize = 13,
+                TextColor3 = Theme.Text,
+                Text = cfg.Title or "Header",
+            })
+            if hasSub then
+                Label(wrap, {
+                    Position = UDim2.fromOffset(2, 20),
+                    Size = UDim2.new(1, -4, 0, 14),
+                    Font = Enum.Font.Gotham,
+                    TextSize = 10,
+                    TextColor3 = Theme.Dim,
+                    Text = cfg.Subtitle,
+                })
+            end
         end
-        Tab.CreateFeaturedCard = Tab.CreateBlock
+
+        function Tab:CreateFeaturedCard(cfg)
+            cfg = cfg or {}
+            local card = New("Frame", {
+                Size = UDim2.new(1, 0, 0, 52),
+                BackgroundColor3 = Theme.Row,
+                BorderSizePixel = 0,
+                LayoutOrder = nextOrder(),
+                Parent = Page,
+            }, { Corner(9), Rim(Theme.StrokeAlpha) })
+
+            Label(card, {
+                Position = UDim2.fromOffset(12, 8),
+                Size = UDim2.new(1, -24, 0, 14),
+                Font = Enum.Font.GothamBold,
+                TextSize = 10,
+                TextColor3 = Theme.Faint,
+                Text = string.upper(cfg.Tag or "FEATURED"),
+            })
+            Label(card, {
+                Position = UDim2.fromOffset(12, 24),
+                Size = UDim2.new(1, -24, 0, 18),
+                Font = Enum.Font.GothamBold,
+                TextSize = 12,
+                TextColor3 = Theme.Text,
+                Text = cfg.Title or "",
+            })
+            return card
+        end
+
+        function Tab:CreateStatRow(stats)
+            stats = stats or {}
+            local count = #stats
+            if count == 0 then return end
+            local row = New("Frame", {
+                Size = UDim2.new(1, 0, 0, 48),
+                BackgroundTransparency = 1,
+                LayoutOrder = nextOrder(),
+                Parent = Page,
+            }, {
+                New("UIListLayout", {
+                    FillDirection = Enum.FillDirection.Horizontal,
+                    Padding = UDim.new(0, 6),
+                    SortOrder = Enum.SortOrder.LayoutOrder,
+                })
+            })
+
+            local valLabels = {}
+            for i, st in ipairs(stats) do
+                local cell = New("Frame", {
+                    Size = UDim2.new(1 / count, -((count - 1) * 6 / count), 1, 0),
+                    BackgroundColor3 = Theme.Row,
+                    BorderSizePixel = 0,
+                    LayoutOrder = i,
+                    Parent = row,
+                }, { Corner(8) })
+
+                Label(cell, {
+                    Position = UDim2.fromOffset(8, 6),
+                    Size = UDim2.new(1, -16, 0, 13),
+                    Font = Enum.Font.GothamMedium,
+                    TextSize = 9,
+                    TextColor3 = Theme.Dim,
+                    Text = string.upper(st.Title or "STAT"),
+                })
+                local vl = Label(cell, {
+                    Position = UDim2.fromOffset(8, 22),
+                    Size = UDim2.new(1, -16, 0, 18),
+                    Font = Enum.Font.GothamBold,
+                    TextSize = 11,
+                    TextColor3 = st.Color or Theme.Text,
+                    Text = tostring(st.Value or "-"),
+                })
+                valLabels[i] = vl
+                if st.Title then valLabels[st.Title] = vl end
+            end
+
+            local StatRowObj = {}
+            function StatRowObj:Update(key, newVal)
+                local target = valLabels[key]
+                if target then target.Text = tostring(newVal) end
+            end
+            return StatRowObj
+        end
+
+        function Tab:CreateActionRow(...)
+            local buttons = { ... }
+            local row = New("Frame", {
+                Size = UDim2.new(1, 0, 0, 36),
+                BackgroundTransparency = 1,
+                LayoutOrder = nextOrder(),
+                Parent = Page,
+            }, {
+                New("UIListLayout", {
+                    FillDirection = Enum.FillDirection.Horizontal,
+                    Padding = UDim.new(0, 6),
+                    SortOrder = Enum.SortOrder.LayoutOrder,
+                })
+            })
+            local n = #buttons
+            for i, bcfg in ipairs(buttons) do
+                local b = Button(row, bcfg.Text or "Action", {
+                    Size = UDim2.new(1 / n, -((n - 1) * 6 / n), 1, 0),
+                    LayoutOrder = i,
+                }, false)
+                b.MouseButton1Click:Connect(function()
+                    if bcfg.Callback then task.spawn(bcfg.Callback) end
+                end)
+            end
+            return row
+        end
+
+        function Tab:CreateCardGroup(title)
+            return Tab:CreateSection(title)
+        end
+
+        function Tab:CreateBlock(title)
+            return Tab:CreateSection(title)
+        end
 
         table.insert(Window.Tabs, Tab)
         if index == 1 then
@@ -1428,7 +1745,215 @@ function NexusLib:CreateWindow(config)
     return Window
 end
 
-local runtimeEnv = (getgenv and getgenv()) or _G or {}
-runtimeEnv.NexusLib = NexusLib
+--------------------------------------------------------------------------
+-- DEMO (matches the Figma Make UI 1:1)
+--------------------------------------------------------------------------
+function NexusLib:Demo()
+    local Island
+    NexusLib:PlayInkIntro({
+        OnPill = function()
+            Island = NexusLib:CreateDynamicIsland({ Title = "Nexus", Status = "Farming" })
+        end,
+        OnWindow = function()
+            if not Island then
+                Island = NexusLib:CreateDynamicIsland({ Title = "Nexus", Status = "Farming" })
+            end
+            local Window = NexusLib:CreateWindow({ Title = "Nexus Hub", SubTitle = "Universal" })
+            local function note(title, on)
+                NexusLib:Notify({ Title = title, Content = on and "Enabled" or "Disabled" })
+            end
+
+            local Main = Window:CreateTab("Main")
+            Main:CreateSection("Automation")
+            Main:CreateToggle({
+                Name = "Auto farm",
+                Description = "Attacks the nearest enemy",
+                Default = true,
+                Callback = function(on)
+                    Island:SetStatus(on and "Farming" or "Ready")
+                    note("Auto farm", on)
+                end,
+            })
+            Main:CreateToggle({
+                Name = "Kill aura",
+                Description = "Hits everything in range",
+                Default = false,
+                Callback = function(on)
+                    if on then Island:SetStatus("Kill aura") end
+                    note("Kill aura", on)
+                end,
+            })
+            Main:CreateDropdown({
+                Name = "Target priority",
+                Options = { "Nearest", "Lowest HP", "Boss" },
+                Default = "Nearest",
+                Callback = function(v)
+                    NexusLib:Notify({ Title = "Target", Content = v })
+                end,
+            })
+
+            Main:CreateSection("Player")
+            Main:CreateSlider({
+                Name = "Walk speed",
+                Min = 16,
+                Max = 200,
+                Default = 60,
+                Callback = function(v)
+                    local char = LocalPlayer.Character
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    if hum then hum.WalkSpeed = v end
+                end,
+            })
+            local infJumpOn = true
+            Main:CreateToggle({
+                Name = "Infinite jump",
+                Default = true,
+                Callback = function(on)
+                    infJumpOn = on
+                    note("Infinite jump", on)
+                end,
+            })
+            UserInputService.JumpRequest:Connect(function()
+                if infJumpOn then
+                    local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                    if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+                end
+            end)
+            Main:CreateInput({
+                Name = "Teleport to player",
+                Description = "Type a name, press Enter",
+                Placeholder = "Username",
+                Callback = function(name)
+                    local target = Players:FindFirstChild(name)
+                    local root = target and target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+                    local mine = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    if root and mine then
+                        mine.CFrame = root.CFrame * CFrame.new(0, 0, 3)
+                    end
+                    NexusLib:Notify({ Title = "Teleport", Content = "Teleported to " .. name })
+                end,
+            })
+            Main:CreateButton({
+                Name = "Return to spawn",
+                Text = "Go",
+                Callback = function()
+                    NexusLib:Notify({ Title = "Teleport", Content = "Back at spawn" })
+                end,
+            })
+
+            local Combat = Window:CreateTab("Combat")
+            Combat:CreateSection("Aim")
+            Combat:CreateToggle({
+                Name = "Silent aim",
+                Description = "Redirects shots to the target",
+                Default = true,
+                Callback = function(on) note("Silent aim", on) end,
+            })
+            Combat:CreateDropdown({
+                Name = "Aim part",
+                Options = { "Head", "Torso", "Root" },
+                Default = "Head",
+            })
+            Combat:CreateSlider({
+                Name = "Hitbox size",
+                Description = "Studs",
+                Min = 2,
+                Max = 50,
+                Default = 14,
+            })
+            Combat:CreateSection("Defense")
+            Combat:CreateToggle({
+                Name = "Auto parry",
+                Description = "Blocks incoming attacks",
+                Default = false,
+                Callback = function(on) note("Auto parry", on) end,
+            })
+
+            local Visual = Window:CreateTab("Visual")
+            Visual:CreateSection("ESP")
+            Visual:CreateToggle({
+                Name = "Boxes",
+                Default = true,
+                Callback = function(on) note("Boxes", on) end,
+            })
+            Visual:CreateToggle({
+                Name = "Chams",
+                Description = "Highlight through walls",
+                Default = false,
+                Callback = function(on) note("Chams", on) end,
+            })
+            Visual:CreateToggle({
+                Name = "Tracers",
+                Default = false,
+                Callback = function(on) note("Tracers", on) end,
+            })
+            Visual:CreateSection("Camera")
+            Visual:CreateSlider({
+                Name = "Field of view",
+                Min = 70,
+                Max = 120,
+                Default = 90,
+                Callback = function(v)
+                    if workspace.CurrentCamera then
+                        workspace.CurrentCamera.FieldOfView = v
+                    end
+                end,
+            })
+
+            local Settings = Window:CreateTab("Settings")
+            Settings:CreateSection("Interface")
+            Settings:CreateKeybind({
+                Name = "Menu key",
+                Description = "Click, then press a key",
+                Default = NexusLib.ToggleKey,
+                Callback = function(key)
+                    NexusLib.ToggleKey = key
+                    NexusLib:Notify({ Title = "Keybind", Content = "Menu key set to " .. key.Name })
+                end,
+            })
+            Settings:CreateToggle({
+                Name = "Show FPS in island",
+                Default = true,
+                Callback = function(on)
+                    if Island then Island:SetStatsVisible(on) end
+                end,
+            })
+            Settings:CreateToggle({
+                Name = "Reduce motion",
+                Default = false,
+                Callback = function(on)
+                    NexusLib.ReduceMotion = on
+                end,
+            })
+            Settings:CreateSlider({
+                Name = "Notification time",
+                Description = "Seconds",
+                Min = 1,
+                Max = 8,
+                Default = 3,
+                Callback = function(v)
+                    NexusLib.NotifyDuration = v
+                end,
+            })
+            Settings:CreateSection("Config")
+            Settings:CreateButton({
+                Name = "Save config",
+                Text = "Save",
+                Callback = function()
+                    NexusLib:Notify({ Title = "Config", Content = "Saved" })
+                end,
+            })
+        end,
+    })
+end
+
+getgenv = getgenv or function() return _G end
+pcall(function() getgenv().NexusLib = NexusLib end)
+
+if not _G.NEXUS_LIB_ONLY and not (shared and shared.NEXUS_LIB_ONLY) then
+    task.spawn(function()
+        NexusLib:Demo()
+    end)
+end
 
 return NexusLib
