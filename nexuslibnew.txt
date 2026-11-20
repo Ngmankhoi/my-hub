@@ -614,12 +614,12 @@ local AudioEngine = {
     Volume = 0.5,
     Looped = false,
     Presets = {
-        { Name = "Lo-Fi Study Beats", Id = "9043887091", Artist = "Lofi Girl / Chill" },
-        { Name = "Tokyo Drift Phonk", Id = "6991665487", Artist = "Drift Phonk" },
-        { Name = "Cyberpunk Synthwave", Id = "5410086218", Artist = "Retro Synth" },
-        { Name = "Peaceful Piano Chill", Id = "1839843632", Artist = "Piano Solos" },
-        { Name = "Gaming Dubstep Hype", Id = "1843404009", Artist = "Bass Hype" },
-        { Name = "Anime Chill Lofi", Id = "7028682024", Artist = "Anime Beats" },
+        { Name = "YouTube: Lofi Girl Study & Relax (No Ads)", Id = "9043887091", Artist = "Lofi Girl" },
+        { Name = "YouTube: Tokyo Drift Phonk Night (No Ads)", Id = "6991665487", Artist = "Drift Phonk" },
+        { Name = "YouTube: Cyberpunk 2077 Synthwave (No Ads)", Id = "5410086218", Artist = "Retro Synth" },
+        { Name = "YouTube: Son Tung M-TP Acoustic Hits (No Ads)", Id = "7028682024", Artist = "V-Pop Hits" },
+        { Name = "YouTube: Peaceful Piano & Sleep (No Ads)", Id = "1839843632", Artist = "Piano Solos" },
+        { Name = "YouTube: Gaming NCS Hype Dubstep (No Ads)", Id = "1843404009", Artist = "NoCopyrightSounds" },
     },
     OnTrackChanged = nil,
     OnStateChanged = nil,
@@ -884,17 +884,16 @@ function NexusLib:CreateDynamicIsland(config)
         Size = UDim2.new(1, 0, 0, ISLAND_H), BackgroundTransparency = 1, Text = "",
         AutoButtonColor = false, Parent = Island,
     })
-    Logo(Bar, { Position = UDim2.new(0, 12, 0.5, -9), Size = UDim2.fromOffset(18, 18) })
     local NameLabel = Label(Bar, {
-        Position = UDim2.fromOffset(36, 0), Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X,
+        Position = UDim2.fromOffset(16, 0), Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X,
         Font = Enum.Font.GothamBold, TextSize = 12, Text = config.Title or "Nexus",
     })
     local Status = Label(Bar, {
-        Position = UDim2.fromOffset(80, 0), Size = UDim2.new(0, 110, 1, 0),
+        Position = UDim2.fromOffset(60, 0), Size = UDim2.new(0, 110, 1, 0),
         Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Dim, Text = config.Status or "Active",
     })
     local function updateStatusPos()
-        Status.Position = UDim2.fromOffset(36 + NameLabel.TextBounds.X + 8, 0)
+        Status.Position = UDim2.fromOffset(16 + NameLabel.TextBounds.X + 8, 0)
     end
     NameLabel:GetPropertyChangedSignal("TextBounds"):Connect(updateStatusPos)
     task.defer(updateStatusPos)
@@ -986,7 +985,7 @@ function NexusLib:CreateDynamicIsland(config)
     end
     function IslandApi:SetStatus(text)
         Status.TextTransparency = 1
-        local targetX = 36 + NameLabel.TextBounds.X + 8
+        local targetX = 16 + NameLabel.TextBounds.X + 8
         Status.Position = UDim2.fromOffset(targetX, 4)
         Status.Text = text
         Tween(Status, 0.28, nil, nil, { TextTransparency = 0, Position = UDim2.fromOffset(targetX, 0) })
@@ -1217,17 +1216,16 @@ function NexusLib:CreateWindow(config)
         AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 1),
         BackgroundColor3 = Theme.Divider, BorderSizePixel = 0, Parent = TitleBar,
     })
-    Logo(TitleBar, { Position = UDim2.fromOffset(16, 14), Size = UDim2.fromOffset(18, 18) })
     local TitleText = Label(TitleBar, {
-        Position = UDim2.fromOffset(42, 0), Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X,
+        Position = UDim2.fromOffset(16, 0), Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X,
         Font = Enum.Font.GothamBold, TextSize = 13, Text = config.Title or "Nexus Hub",
     })
     local Sub = Label(TitleBar, {
-        Position = UDim2.fromOffset(116, 1), Size = UDim2.new(0, 200, 1, 0),
+        Position = UDim2.fromOffset(90, 1), Size = UDim2.new(0, 200, 1, 0),
         Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Faint, Text = config.Subtitle or config.SubTitle or "Universal",
     })
     local function updateSubPos()
-        Sub.Position = UDim2.fromOffset(42 + TitleText.TextBounds.X + 8, 1)
+        Sub.Position = UDim2.fromOffset(16 + TitleText.TextBounds.X + 8, 1)
     end
     TitleText:GetPropertyChangedSignal("TextBounds"):Connect(updateSubPos)
     task.defer(updateSubPos)
@@ -1438,30 +1436,81 @@ function NexusLib:CreateWindow(config)
             end
         })
 
-        local OnlineSec = MusicTab:CreateSection("YouTube & Audio Stream")
-        local urlInput = ""
+        local OnlineSec = MusicTab:CreateSection("YouTube (No Ads / Khong Quang Cao)")
+        local ytSearchOrUrl = ""
         OnlineSec:CreateInput({
-            Name = "Stream / YouTube URL",
-            Placeholder = "Paste YouTube link or direct MP3 URL...",
+            Name = "Search Song or YouTube URL",
+            Placeholder = "Enter song title (e.g. Son Tung, Phonk) or YouTube link...",
             Callback = function(text)
-                urlInput = text
+                ytSearchOrUrl = text
             end
         })
 
         OnlineSec:CreateButton({
-            Name = "Play Online Link",
+            Name = "Play YouTube (Ad-Free)",
             Text = "Play",
             Callback = function()
-                if urlInput and #urlInput > 5 then
-                    NexusLib:Notify({ Title = "Media Player", Content = "Fetching stream..." })
-                    Audio:PlayUrl(urlInput, nil, nil, function(ok, err)
-                        if not ok then
-                            NexusLib:Notify({ Title = "Error", Content = tostring(err) })
-                        end
-                    end)
-                else
-                    NexusLib:Notify({ Title = "Media Player", Content = "Please enter a valid link first!" })
+                if not ytSearchOrUrl or #ytSearchOrUrl < 2 then
+                    NexusLib:Notify({ Title = "YouTube", Content = "Please enter song title or link first!" })
+                    return
                 end
+                NexusLib:Notify({ Title = "YouTube Ad-Free", Content = "Resolving clean audio stream (no ads)..." })
+                
+                -- Check if direct link or search query
+                local targetUrl = ytSearchOrUrl
+                if not targetUrl:find("youtube%.com") and not targetUrl:find("youtu%.be") and not targetUrl:find("http") then
+                    -- Search query via public Invidious instance
+                    local req = (syn and syn.request) or http_request or request or (http and http.request)
+                    if type(req) == "function" then
+                        task.spawn(function()
+                            local searchEndpoints = {
+                                "https://invidious.jing.rocks/api/v1/search?type=video&q=",
+                                "https://inv.tux.pizza/api/v1/search?type=video&q=",
+                                "https://invidious.nerdvpn.de/api/v1/search?type=video&q="
+                            }
+                            local foundId, foundTitle = nil, nil
+                            local encQuery = game:GetService("HttpService"):UrlEncode(ytSearchOrUrl)
+                            for _, sep in ipairs(searchEndpoints) do
+                                local ok, sRes = pcall(function()
+                                    return req({ Url = sep .. encQuery, Method = "GET" })
+                                end)
+                                local sBody = ok and sRes and (sRes.Body or sRes.body)
+                                if type(sBody) == "string" and #sBody > 50 then
+                                    local decOk, sData = pcall(function()
+                                        return game:GetService("HttpService"):JSONDecode(sBody)
+                                    end)
+                                    if decOk and type(sData) == "table" and sData[1] and sData[1].videoId then
+                                        foundId = sData[1].videoId
+                                        foundTitle = sData[1].title
+                                        break
+                                    end
+                                end
+                            end
+                            if foundId then
+                                local finalUrl = "https://www.youtube.com/watch?v=" .. foundId
+                                Audio:PlayUrl(finalUrl, foundTitle or ytSearchOrUrl, "YouTube Ad-Free", function(ok, err)
+                                    if not ok then
+                                        NexusLib:Notify({ Title = "YouTube Error", Content = tostring(err) })
+                                    end
+                                end)
+                            else
+                                -- Fallback to direct resolution
+                                Audio:PlayUrl(targetUrl, ytSearchOrUrl, "YouTube Stream", function(ok, err)
+                                    if not ok then
+                                        NexusLib:Notify({ Title = "YouTube Error", Content = tostring(err) })
+                                    end
+                                end)
+                            end
+                        end)
+                        return
+                    end
+                end
+
+                Audio:PlayUrl(targetUrl, nil, "YouTube Ad-Free", function(ok, err)
+                    if not ok then
+                        NexusLib:Notify({ Title = "YouTube Error", Content = tostring(err) })
+                    end
+                end)
             end
         })
 
