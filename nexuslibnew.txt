@@ -614,12 +614,11 @@ local AudioEngine = {
     Volume = 0.5,
     Looped = false,
     Presets = {
-        { Name = "YouTube: Lofi Girl Study & Relax (No Ads)", Id = "9043887091", Artist = "Lofi Girl" },
-        { Name = "YouTube: Tokyo Drift Phonk Night (No Ads)", Id = "6991665487", Artist = "Drift Phonk" },
-        { Name = "YouTube: Cyberpunk 2077 Synthwave (No Ads)", Id = "5410086218", Artist = "Retro Synth" },
-        { Name = "YouTube: Son Tung M-TP Acoustic Hits (No Ads)", Id = "7028682024", Artist = "V-Pop Hits" },
-        { Name = "YouTube: Peaceful Piano & Sleep (No Ads)", Id = "1839843632", Artist = "Piano Solos" },
-        { Name = "YouTube: Gaming NCS Hype Dubstep (No Ads)", Id = "1843404009", Artist = "NoCopyrightSounds" },
+        { Name = "Lo-Fi Chill Beats (100% Working)", Id = "9043887091", Artist = "APM / Lofi Chill" },
+        { Name = "Noisestorm - Crab Rave (Monstercat)", Id = "5410086218", Artist = "Monstercat" },
+        { Name = "Paradise Falls - Acoustic Chill", Id = "1837879082", Artist = "Acoustic Guitar" },
+        { Name = "Uptown - Cyberpunk Synthwave", Id = "1845554017", Artist = "Synthwave Groove" },
+        { Name = "Happy Song - Electro Gaming Hype", Id = "1843404009", Artist = "Roblox Official" },
     },
     OnTrackChanged = nil,
     OnStateChanged = nil,
@@ -632,11 +631,14 @@ local function EnsureSound()
     end
     local s = Instance.new("Sound")
     s.Name = "NexusAudioStream"
-    s.Volume = AudioEngine.Volume
+    s.Volume = AudioEngine.Volume or 0.8
     s.Looped = AudioEngine.Looped
-    pcall(function() s.Parent = game:GetService("SoundService") end)
+    s.PlaybackSpeed = 1
+    s.RollOffMaxDistance = 10000000
+    s.RollOffMinDistance = 10000000
+    pcall(function() s.Parent = workspace.CurrentCamera or game:GetService("SoundService") end)
     if not s.Parent then
-        pcall(function() s.Parent = workspace end)
+        pcall(function() s.Parent = game:GetService("SoundService") end)
     end
     AudioEngine.Sound = s
 
@@ -666,7 +668,14 @@ function AudioEngine:PlayAsset(assetId, title, artist)
     local cleanId = tostring(assetId):gsub("%D", "")
     s.SoundId = "rbxassetid://" .. cleanId
     s.TimePosition = 0
+    s.Volume = AudioEngine.Volume or 0.8
     s:Play()
+    task.spawn(function()
+        if not s.IsLoaded then
+            pcall(function() s.Loaded:Wait() end)
+        end
+        s:Play()
+    end)
     AudioEngine.IsPlaying = true
     AudioEngine.CurrentTrack = {
         Title = title or ("Asset " .. cleanId),
@@ -905,10 +914,10 @@ function NexusLib:CreateDynamicIsland(config)
         RichText = true,
         Text = "144 fps <font color=\"#5a5a62\">" .. DOT .. "</font> 19ms",
     })
-    -- Audio wave visualizer container
+    -- Audio wave visualizer container (positioned on left next to name to prevent any collision with stats)
     local WaveContainer = New("Frame", {
-        AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -34, 0.5, 0),
-        Size = UDim2.fromOffset(26, 16), BackgroundTransparency = 1, Visible = false, Parent = Bar,
+        AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 82, 0.5, 0),
+        Size = UDim2.fromOffset(24, 14), BackgroundTransparency = 1, Visible = false, Parent = Bar,
     })
     local WaveBars = {}
     for i = 1, 4 do
@@ -935,13 +944,10 @@ function NexusLib:CreateDynamicIsland(config)
         BackgroundTransparency = 1, Visible = false, Parent = Drawer,
     })
     local MediaPlayBtn = Button(MediaRow, "Pause", {
-        Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(44, 24),
-    }, true)
-    local MediaStopBtn = Button(MediaRow, "Stop", {
-        Position = UDim2.fromOffset(48, 0), Size = UDim2.fromOffset(40, 24),
+        Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(50, 24),
     }, true)
     local MediaTrackLabel = Label(MediaRow, {
-        Position = UDim2.fromOffset(94, 0), Size = UDim2.new(1, -94, 1, 0),
+        Position = UDim2.fromOffset(56, 0), Size = UDim2.new(1, -56, 1, 0),
         Font = Enum.Font.GothamMedium, TextSize = 11, TextColor3 = Theme.Text,
         Text = "No Audio Playing", TextTruncate = Enum.TextTruncate.AtEnd,
     })
@@ -1013,6 +1019,11 @@ function NexusLib:CreateDynamicIsland(config)
         IslandApi.HasMedia = hasTrack
         WaveContainer.Visible = AudioEngine.IsPlaying
         MediaRow.Visible = hasTrack
+        if AudioEngine.IsPlaying then
+            Status.Position = UDim2.fromOffset(112, 0)
+        else
+            Status.Position = UDim2.fromOffset(80, 0)
+        end
         if hasTrack then
             MediaTrackLabel.Text = AudioEngine.CurrentTrack.Title
             MediaPlayBtn.Text = AudioEngine.IsPlaying and "Pause" or "Play"
@@ -1035,9 +1046,6 @@ function NexusLib:CreateDynamicIsland(config)
     Island.MouseLeave:Connect(function() Tween(Island.UIStroke, 0.2, nil, nil, { Transparency = Theme.StrokeAlpha }) end)
     MediaPlayBtn.MouseButton1Click:Connect(function()
         AudioEngine:TogglePlay()
-    end)
-    MediaStopBtn.MouseButton1Click:Connect(function()
-        AudioEngine:Stop()
     end)
     HideBtn.MouseButton1Click:Connect(function()
         if NexusLib.ActiveWindow then
