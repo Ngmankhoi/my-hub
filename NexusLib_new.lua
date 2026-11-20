@@ -1621,39 +1621,166 @@ end
         local MusicTab = Window:CreateTab(tabName or "Music")
         local Audio = NexusLib.Audio
 
-        local YtSec = MusicTab:CreateSection("YouTube In-Game Cinema & Music")
-        YtSec:CreateFeaturedCard({
-            Tag = "YOUTUBE IN-GAME",
-            Title = "YouTube Cinema & Music Panel",
-            Description = "Bat man hinh YouTube noi trong game de xem phim, MV hoac nghe nhac tu do khong quang cao.",
-            ActionText = "Bat Man Hinh YouTube",
-            Callback = function()
-                local p = NexusLib:CreateYouTubePanel()
-                p:SetVisible(true)
-                NexusLib:Notify({ Title = "YouTube", Content = "Da mo man hinh YouTube noi!" })
-            end
+        -- Embed the YouTube Cinema Display Screen directly inside the Tab Page
+        local ScreenCard = New("Frame", {
+            Size = UDim2.new(1, 0, 0, 186),
+            BackgroundColor3 = Color3.fromRGB(8, 8, 10),
+            BorderSizePixel = 0,
+            LayoutOrder = 1,
+            Parent = MusicTab.Page,
+        }, { Corner(10), Rim(Theme.StrokeAlpha) })
+
+        -- Top Bar inside Screen
+        local YtHeader = New("Frame", {
+            Position = UDim2.fromOffset(10, 8), Size = UDim2.new(1, -20, 0, 22),
+            BackgroundTransparency = 1, Parent = ScreenCard,
+        })
+        local YtIcon = New("Frame", {
+            Position = UDim2.fromOffset(0, 2), Size = UDim2.fromOffset(24, 18),
+            BackgroundColor3 = Color3.fromRGB(235, 45, 45), BorderSizePixel = 0, Parent = YtHeader,
+        }, { Corner(4) })
+        Label(YtIcon, {
+            Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5),
+            Text = ">", Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Theme.White,
+        })
+        local ScreenTitle = Label(YtHeader, {
+            Position = UDim2.fromOffset(32, 0), Size = UDim2.new(1, -120, 1, 0),
+            Font = Enum.Font.GothamBold, TextSize = 12, Text = "YouTube Cinema Player",
+            TextTruncate = Enum.TextTruncate.AtEnd,
+        })
+        local ScreenDuration = Label(YtHeader, {
+            AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0),
+            Font = Enum.Font.Code, TextSize = 10, TextColor3 = Theme.Dim, Text = "00:00 / 00:00",
         })
 
-        local ControlSec = MusicTab:CreateSection("Dieu Khien Nhanh")
-        local StatusLabel = ControlSec:CreateLabel({
-            Text = "Trang thai: " .. Audio.CurrentTrack.Title
+        -- Center Video Area
+        local CenterArea = New("Frame", {
+            Position = UDim2.fromOffset(10, 34), Size = UDim2.new(1, -20, 0, 114),
+            BackgroundColor3 = Color3.fromRGB(15, 15, 18), BorderSizePixel = 0, Parent = ScreenCard,
+        }, { Corner(6) })
+
+        local PlayingTitle = Label(CenterArea, {
+            Position = UDim2.fromScale(0.5, 0.35), AnchorPoint = Vector2.new(0.5, 0.5),
+            Font = Enum.Font.GothamBold, TextSize = 13, TextColor3 = Theme.Text,
+            Text = "YouTube In-Game Player", TextXAlignment = Enum.TextXAlignment.Center,
         })
-        Audio.OnTrackChanged = function(t)
-            pcall(function() StatusLabel:Set("Trang thai: " .. t.Title) end)
+        local PlayingSub = Label(CenterArea, {
+            Position = UDim2.fromScale(0.5, 0.55), AnchorPoint = Vector2.new(0.5, 0.5),
+            Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Dim,
+            Text = "Nhap ten video / phim hoac chon ben duoi de phat ngay",
+            TextXAlignment = Enum.TextXAlignment.Center,
+        })
+
+        -- Animated sound wave
+        local VideoWave = New("Frame", {
+            Position = UDim2.fromScale(0.5, 0.78), AnchorPoint = Vector2.new(0.5, 0.5),
+            Size = UDim2.fromOffset(56, 16), BackgroundTransparency = 1, Parent = CenterArea,
+        })
+        local sBars = {}
+        for i = 1, 6 do
+            local b = New("Frame", {
+                Position = UDim2.new(0, (i - 1) * 9 + 3, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5),
+                Size = UDim2.fromOffset(4, 4), BackgroundColor3 = Color3.fromRGB(235, 45, 45), BorderSizePixel = 0,
+                Parent = VideoWave,
+            }, { Corner(2) })
+            table.insert(sBars, b)
         end
 
-        ControlSec:CreateActionRow({
-            Title = "Thao tac",
+        -- Progress bar
+        local ProgressBg = New("Frame", {
+            Position = UDim2.fromOffset(10, 154), Size = UDim2.new(1, -20, 0, 4),
+            BackgroundColor3 = Color3.fromRGB(35, 35, 40), BorderSizePixel = 0, Parent = ScreenCard,
+        }, { Corner(2) })
+        local ProgressBar = New("Frame", {
+            Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = Color3.fromRGB(235, 45, 45),
+            BorderSizePixel = 0, Parent = ProgressBg,
+        }, { Corner(2) })
+
+        -- Mini control bar below Screen
+        local ControlsBar = New("Frame", {
+            Position = UDim2.fromOffset(10, 160), Size = UDim2.new(1, -20, 0, 22),
+            BackgroundTransparency = 1, Parent = ScreenCard,
+        })
+        local PlayToggleBtn = Button(ControlsBar, "Play", {
+            Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(48, 22),
+        }, true)
+        local PopoutBtn = Button(ControlsBar, "Man Hinh Noi (Floating)", {
+            AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(140, 22),
+        }, true)
+
+        PlayToggleBtn.MouseButton1Click:Connect(function()
+            local isP = Audio:TogglePlay()
+            PlayToggleBtn.Text = isP and "Pause" or "Play"
+        end)
+
+        PopoutBtn.MouseButton1Click:Connect(function()
+            local p = NexusLib:CreateYouTubePanel()
+            p:SetVisible(true)
+            NexusLib:Notify({ Title = "YouTube", Content = "Da mo man hinh YouTube Cinema noi!" })
+        end)
+
+        Audio.OnTrackChanged = function(t)
+            pcall(function()
+                ScreenTitle.Text = t.Title
+                PlayingTitle.Text = t.Title
+                PlayingSub.Text = t.Artist .. " - Dang phat khong quang cao"
+                PlayToggleBtn.Text = "Pause"
+            end)
+        end
+
+        TrackConn(RunService.RenderStepped:Connect(function()
+            if not MusicTab.Page.Parent then return end
+            if Audio.IsPlaying and MusicTab.Page.Visible then
+                local t = os.clock() * 10
+                for i, b in ipairs(sBars) do
+                    local h = math.clamp(math.floor(math.abs(math.sin(t + i * 0.9)) * 14) + 3, 3, 16)
+                    b.Size = UDim2.fromOffset(4, h)
+                end
+                if Audio.Sound and Audio.Sound.TimeLength > 0 then
+                    local frac = math.clamp(Audio.Sound.TimePosition / Audio.Sound.TimeLength, 0, 1)
+                    ProgressBar.Size = UDim2.new(frac, 0, 1, 0)
+                    local curM = math.floor(Audio.Sound.TimePosition / 60)
+                    local curS = math.floor(Audio.Sound.TimePosition % 60)
+                    local totM = math.floor(Audio.Sound.TimeLength / 60)
+                    local totS = math.floor(Audio.Sound.TimeLength % 60)
+                    ScreenDuration.Text = string.format("%02d:%02d / %02d:%02d", curM, curS, totM, totS)
+                end
+            end
+        end))
+
+        -- Search & Quick Stations Section
+        local SearchSec = MusicTab:CreateSection("Tim Kiem & Kenh Phim / Nhac")
+        local searchTxt = ""
+        SearchSec:CreateInput({
+            Name = "Tim Kiem Phim / Nhac",
+            Placeholder = "Nhap ten phim hoac bai hat muon xem...",
+            Callback = function(t) searchTxt = t end,
+        })
+
+        SearchSec:CreateActionRow({
+            Title = "Thao Tac Tim Kiem",
             Buttons = {
                 {
-                    Text = "Play / Pause",
+                    Text = "Phat Video / Phim",
                     Callback = function()
-                        local p = Audio:TogglePlay()
-                        NexusLib:Notify({ Title = "Media", Content = p and "Dang phat" or "Tam dung" })
+                        if not searchTxt or #searchTxt < 2 then
+                            NexusLib:Notify({ Title = "YouTube", Content = "Vui long nhap ten phim/video truoc!" })
+                            return
+                        end
+                        NexusLib:Notify({ Title = "YouTube", Content = "Dang mo: " .. searchTxt })
+                        PlayingTitle.Text = "Dang tai: " .. searchTxt
+                        PlayingSub.Text = "Dang ket noi luong YouTube..."
+                        Audio:PlayUrl(searchTxt, searchTxt, "YouTube Cinema", function(ok)
+                            if ok then
+                                PlayingTitle.Text = searchTxt
+                                PlayingSub.Text = "Phat truc tiep - Khong quang cao"
+                                PlayToggleBtn.Text = "Pause"
+                            end
+                        end)
                     end
                 },
                 {
-                    Text = "Mo Cinema Panel",
+                    Text = "Mo Panel Noi",
                     Callback = function()
                         NexusLib:CreateYouTubePanel():SetVisible(true)
                     end
@@ -1661,14 +1788,35 @@ end
             }
         })
 
-        ControlSec:CreateSlider({
-            Name = "Am luong (Volume)",
-            Min = 0,
-            Max = 100,
-            Default = 80,
-            Callback = function(v)
-                Audio:SetVolume(v / 100)
+        SearchSec:CreateDropdown({
+            Name = "Kenh Hot Chon Loc (Bam Xem Ngay)",
+            Options = {
+                "Anime Vietsub Tap 1",
+                "Nhac Tre Remix Hot TikTok",
+                "Lofi Chill Beats 24/7",
+                "Phim Hanh Dong Hay Nhat",
+                "Phonk Night Drive Bass",
+                "Hai Tet Cuoi Xuyen Tet"
+            },
+            Default = "Anime Vietsub Tap 1",
+            Callback = function(choice)
+                PlayingTitle.Text = "Dang tai: " .. choice
+                PlayingSub.Text = "Dang ket noi luong video..."
+                Audio:PlayUrl(choice, choice, "YouTube Cinema", function(ok)
+                    if ok then
+                        PlayingTitle.Text = choice
+                        PlayingSub.Text = "Dang phat truc tiep - Khong quang cao"
+                        PlayToggleBtn.Text = "Pause"
+                    end
+                end)
             end
+        })
+
+        local VolSec = MusicTab:CreateSection("Cai Dat Am Luong")
+        VolSec:CreateSlider({
+            Name = "Am Luong (Volume)",
+            Min = 0, Max = 100, Default = 80,
+            Callback = function(v) Audio:SetVolume(v / 100) end
         })
 
         return MusicTab
