@@ -884,16 +884,17 @@ function NexusLib:CreateDynamicIsland(config)
         Size = UDim2.new(1, 0, 0, ISLAND_H), BackgroundTransparency = 1, Text = "",
         AutoButtonColor = false, Parent = Island,
     })
+    Logo(Bar, { Position = UDim2.new(0, 12, 0.5, -9), Size = UDim2.fromOffset(18, 18) })
     local NameLabel = Label(Bar, {
-        Position = UDim2.fromOffset(16, 0), Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X,
+        Position = UDim2.fromOffset(36, 0), Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X,
         Font = Enum.Font.GothamBold, TextSize = 12, Text = config.Title or "Nexus",
     })
     local Status = Label(Bar, {
-        Position = UDim2.fromOffset(60, 0), Size = UDim2.new(0, 110, 1, 0),
+        Position = UDim2.fromOffset(80, 0), Size = UDim2.new(0, 110, 1, 0),
         Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Dim, Text = config.Status or "Active",
     })
     local function updateStatusPos()
-        Status.Position = UDim2.fromOffset(16 + NameLabel.TextBounds.X + 8, 0)
+        Status.Position = UDim2.fromOffset(36 + NameLabel.TextBounds.X + 8, 0)
     end
     NameLabel:GetPropertyChangedSignal("TextBounds"):Connect(updateStatusPos)
     task.defer(updateStatusPos)
@@ -933,14 +934,14 @@ function NexusLib:CreateDynamicIsland(config)
         Position = UDim2.fromOffset(0, 0), Size = UDim2.new(1, 0, 0, 26),
         BackgroundTransparency = 1, Visible = false, Parent = Drawer,
     })
-    local MediaPlayBtn = Button(MediaRow, "⏸", {
-        Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(30, 24),
+    local MediaPlayBtn = Button(MediaRow, "Pause", {
+        Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(44, 24),
     }, true)
-    local MediaStopBtn = Button(MediaRow, "⏹", {
-        Position = UDim2.fromOffset(34, 0), Size = UDim2.fromOffset(30, 24),
+    local MediaStopBtn = Button(MediaRow, "Stop", {
+        Position = UDim2.fromOffset(48, 0), Size = UDim2.fromOffset(40, 24),
     }, true)
     local MediaTrackLabel = Label(MediaRow, {
-        Position = UDim2.fromOffset(70, 0), Size = UDim2.new(1, -70, 1, 0),
+        Position = UDim2.fromOffset(94, 0), Size = UDim2.new(1, -94, 1, 0),
         Font = Enum.Font.GothamMedium, TextSize = 11, TextColor3 = Theme.Text,
         Text = "No Audio Playing", TextTruncate = Enum.TextTruncate.AtEnd,
     })
@@ -985,7 +986,7 @@ function NexusLib:CreateDynamicIsland(config)
     end
     function IslandApi:SetStatus(text)
         Status.TextTransparency = 1
-        local targetX = 16 + NameLabel.TextBounds.X + 8
+        local targetX = 36 + NameLabel.TextBounds.X + 8
         Status.Position = UDim2.fromOffset(targetX, 4)
         Status.Text = text
         Tween(Status, 0.28, nil, nil, { TextTransparency = 0, Position = UDim2.fromOffset(targetX, 0) })
@@ -1014,7 +1015,7 @@ function NexusLib:CreateDynamicIsland(config)
         MediaRow.Visible = hasTrack
         if hasTrack then
             MediaTrackLabel.Text = AudioEngine.CurrentTrack.Title
-            MediaPlayBtn.Text = AudioEngine.IsPlaying and "⏸" or "▶"
+            MediaPlayBtn.Text = AudioEngine.IsPlaying and "Pause" or "Play"
             WinRow.Position = UDim2.fromOffset(0, 30)
             Drawer.Size = UDim2.new(1, -20, 0, 58)
         else
@@ -1216,16 +1217,17 @@ function NexusLib:CreateWindow(config)
         AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 1),
         BackgroundColor3 = Theme.Divider, BorderSizePixel = 0, Parent = TitleBar,
     })
+    Logo(TitleBar, { Position = UDim2.fromOffset(16, 14), Size = UDim2.fromOffset(18, 18) })
     local TitleText = Label(TitleBar, {
-        Position = UDim2.fromOffset(16, 0), Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X,
+        Position = UDim2.fromOffset(42, 0), Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X,
         Font = Enum.Font.GothamBold, TextSize = 13, Text = config.Title or "Nexus Hub",
     })
     local Sub = Label(TitleBar, {
-        Position = UDim2.fromOffset(90, 1), Size = UDim2.new(0, 200, 1, 0),
+        Position = UDim2.fromOffset(116, 1), Size = UDim2.new(0, 200, 1, 0),
         Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Faint, Text = config.Subtitle or config.SubTitle or "Universal",
     })
     local function updateSubPos()
-        Sub.Position = UDim2.fromOffset(16 + TitleText.TextBounds.X + 8, 1)
+        Sub.Position = UDim2.fromOffset(42 + TitleText.TextBounds.X + 8, 1)
     end
     TitleText:GetPropertyChangedSignal("TextBounds"):Connect(updateSubPos)
     task.defer(updateSubPos)
