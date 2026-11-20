@@ -1,3048 +1,2016 @@
---!strict
 --[[
-	Nexus / NexusLib Unified Engine
-	Lucian UX/UI Prompt #040 (Collapsible Rail) + #041 (Notched Bottom Tab Bar)
-	100% Compatible with Nexus_noguard_legit_test.lua & Nexus Hub ecosystem.
-	MIT License (c) 2026 Seokwoooo & Ngmankhoi
+    NEXUS UI  -  single-file Luau UI library (Roblox executors)
+
+    Everything is in this one file: the ink-swirl intro, the Dynamic Island,
+    the window, tabs, notifications, and every control. The white Nexus N logo
+    is embedded as clean Base64 with a geometric vector shard fallback.
+
+    Quick start (paste directly into your executor and press Execute, or):
+        local Nexus = loadstring(readfile("nexuslibnew.txt"))()
+
+    To import as a library without auto-running the demo UI:
+        _G.NEXUS_LIB_ONLY = true
+        local Nexus = loadstring(readfile("nexuslibnew.txt"))()
 ]]
 
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
 
-local LucianUI = {
-	_windows = {},
+local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
+local DOT = "\194\183" -- pure-ASCII UTF-8 middle dot so ANSI/CP1252 executors never corrupt it
+
+getgenv = getgenv or function() return _G end
+do
+    local env = getgenv()
+    if type(env.__NEXUS_CLEANUP) == "table" then
+        for _, fn in ipairs(env.__NEXUS_CLEANUP) do
+            pcall(fn)
+        end
+    end
+    env.__NEXUS_CLEANUP = {}
+end
+
+local function TrackConn(conn)
+    local env = getgenv()
+    if type(env.__NEXUS_CLEANUP) == "table" then
+        table.insert(env.__NEXUS_CLEANUP, function()
+            if conn and conn.Connected then conn:Disconnect() end
+        end)
+    end
+    return conn
+end
+
+local function TrackCleanup(fn)
+    local env = getgenv()
+    if type(env.__NEXUS_CLEANUP) == "table" then
+        table.insert(env.__NEXUS_CLEANUP, fn)
+    end
+end
+
+local NexusLib = {
+    -- Exact Figma Make color tokens (pre-composited over #111114 so 3D game worlds never wash out UI rows)
+    Theme = {
+        Surface       = Color3.fromRGB(17, 17, 20),    -- #111114 (shared by island, window & notifications)
+        SurfaceAlpha  = 0.06,                          -- 94% opaque dark glass
+        Stroke        = Color3.fromRGB(255, 255, 255),
+        StrokeAlpha   = 0.90,                          -- 1px subtle border (rgba(255,255,255,0.10))
+        StrokeHover   = 0.84,                          -- hover border (rgba(255,255,255,0.16))
+        Divider       = Color3.fromRGB(33, 33, 38),    -- #212126 (1px titlebar & sidebar dividers)
+        Row           = Color3.fromRGB(25, 25, 29),    -- #19191d (--row: rgba(255,255,255,0.035) on #111114)
+        RowHover      = Color3.fromRGB(31, 31, 36),    -- #1f1f24 (--row-hover: rgba(255,255,255,0.06) on #111114)
+        Control       = Color3.fromRGB(34, 34, 39),    -- #222227 (--control: rgba(255,255,255,0.07) on #111114)
+        ControlHover  = Color3.fromRGB(43, 43, 50),    -- #2b2b32 (--control-hover: rgba(255,255,255,0.11) on #111114)
+        ToggleOff     = Color3.fromRGB(45, 45, 52),    -- #2d2d34 (rgba(255,255,255,0.12) on #111114)
+        Menu          = Color3.fromRGB(24, 24, 28),    -- #18181c (dropdown menu surface)
+        Knob          = Color3.fromRGB(142, 142, 150),  -- #8e8e96 (toggle off thumb)
+        Text          = Color3.fromRGB(237, 237, 239), -- #ededef (--text)
+        Dim           = Color3.fromRGB(138, 138, 146), -- #8a8a92 (--dim)
+        Faint         = Color3.fromRGB(90, 90, 98),    -- #5a5a62 (--faint)
+        White         = Color3.fromRGB(255, 255, 255),
+    },
+    ToggleKey = Enum.KeyCode.RightShift,
+    DefaultWindowSize = Vector2.new(640, 420),
+    NotifyDuration = 3,
+    ReduceMotion = false,
+    Listening = false,
 }
-LucianUI.__index = LucianUI
+NexusLib.__index = NexusLib
 
--- ==============================================================================
--- DESIGN TOKENS (Lucian UX/UI Light & Dark Themes)
--- ==============================================================================
-LucianUI.Tokens = {
-	Light = {
-		Page = Color3.fromRGB(244, 242, 238),           -- #F4F2EE
-		Surface = Color3.fromRGB(255, 255, 255),        -- #FFFFFF
-		Surface2 = Color3.fromRGB(245, 243, 239),       -- #F5F3EF
-		Surface3 = Color3.fromRGB(234, 231, 225),       -- #EAE7E1
-		Ink = Color3.fromRGB(22, 21, 27),               -- #16151B
-		Ink2 = Color3.fromRGB(87, 83, 95),              -- #57535F
-		Ink3 = Color3.fromRGB(142, 138, 151),           -- #8E8A97
-		Line = Color3.fromRGB(22, 21, 27),
-		LineTransparency = 0.91,
-		Line2Transparency = 0.83,
-		Accent = Color3.fromRGB(106, 87, 242),          -- #6A57F2
-		Accent2 = Color3.fromRGB(47, 143, 224),         -- #2F8FE0
-		AccentSoft = Color3.fromRGB(106, 87, 242),
-		AccentInk = Color3.fromRGB(255, 255, 255),
-		Mint = Color3.fromRGB(17, 156, 114),            -- #119C72
-		Warn = Color3.fromRGB(214, 115, 30),            -- #D6731E
-		Danger = Color3.fromRGB(217, 58, 85),           -- #D93A55
-		Shadow = Color3.fromRGB(40, 30, 80),
-		Gradient = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromRGB(123, 97, 255)),
-			ColorSequenceKeypoint.new(0.55, Color3.fromRGB(61, 139, 255)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(31, 184, 154))
-		}),
-		BlockGradients = {
-			ColorSequence.new(Color3.fromRGB(139, 108, 255), Color3.fromRGB(91, 140, 255)),
-			ColorSequence.new(Color3.fromRGB(255, 181, 71), Color3.fromRGB(255, 122, 69)),
-			ColorSequence.new(Color3.fromRGB(34, 195, 166), Color3.fromRGB(14, 165, 233)),
-			ColorSequence.new(Color3.fromRGB(255, 122, 147), Color3.fromRGB(176, 79, 208))
-		}
-	},
-	Dark = {
-		Page = Color3.fromRGB(7, 8, 13),                -- #07080D
-		Surface = Color3.fromRGB(19, 20, 28),           -- #13141C
-		Surface2 = Color3.fromRGB(26, 27, 37),          -- #1A1B25
-		Surface3 = Color3.fromRGB(37, 38, 50),          -- #252632
-		Ink = Color3.fromRGB(244, 240, 232),            -- #F4F0E8
-		Ink2 = Color3.fromRGB(244, 240, 232),
-		Ink3 = Color3.fromRGB(142, 138, 151),
-		Line = Color3.fromRGB(255, 255, 255),
-		LineTransparency = 0.92,
-		Line2Transparency = 0.84,
-		Accent = Color3.fromRGB(183, 164, 255),         -- #B7A4FF
-		Accent2 = Color3.fromRGB(125, 180, 255),        -- #7DB4FF
-		AccentSoft = Color3.fromRGB(183, 164, 255),
-		AccentInk = Color3.fromRGB(11, 12, 18),
-		Mint = Color3.fromRGB(126, 232, 192),
-		Warn = Color3.fromRGB(255, 178, 107),
-		Danger = Color3.fromRGB(255, 125, 140),
-		Shadow = Color3.fromRGB(0, 0, 0),
-		Gradient = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromRGB(183, 164, 255)),
-			ColorSequenceKeypoint.new(0.55, Color3.fromRGB(125, 180, 255)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(165, 242, 211))
-		}),
-		BlockGradients = {
-			ColorSequence.new(Color3.fromRGB(139, 108, 255), Color3.fromRGB(91, 140, 255)),
-			ColorSequence.new(Color3.fromRGB(255, 181, 71), Color3.fromRGB(255, 122, 69)),
-			ColorSequence.new(Color3.fromRGB(34, 195, 166), Color3.fromRGB(14, 165, 233)),
-			ColorSequence.new(Color3.fromRGB(255, 122, 147), Color3.fromRGB(176, 79, 208))
-		}
-	}
-}
+local Theme = NexusLib.Theme
 
--- Universal High-Precision Typography System
-local FONT_REGULAR = pcall(function() return Enum.Font.BuilderSans end) and Enum.Font.BuilderSans or Enum.Font.SourceSans
-local FONT_MEDIUM = pcall(function() return Enum.Font.BuilderSansMedium end) and Enum.Font.BuilderSansMedium or Enum.Font.SourceSansSemibold
-local FONT_BOLD = pcall(function() return Enum.Font.BuilderSansBold end) and Enum.Font.BuilderSansBold or Enum.Font.SourceSansBold
-
-local function getUIFont(weight: "Regular" | "Medium" | "Bold" | "SemiBold"): Enum.Font
-	if weight == "Bold" or weight == "SemiBold" then
-		return FONT_BOLD
-	elseif weight == "Medium" then
-		return FONT_MEDIUM
-	else
-		return FONT_REGULAR
-	end
+--------------------------------------------------------------------------
+-- helpers
+--------------------------------------------------------------------------
+local function GetSafeGui()
+    if type(gethui) == "function" then
+        local ok, hui = pcall(gethui)
+        if ok and hui then
+            return hui
+        end
+    end
+    local ok, gui = pcall(function()
+        local probe = Instance.new("ScreenGui")
+        probe.Name = "Nexus_Probe"
+        probe.Parent = CoreGui
+        probe:Destroy()
+        return CoreGui
+    end)
+    if ok and gui then
+        return gui
+    end
+    local lp = Players.LocalPlayer or LocalPlayer
+    return lp:WaitForChild("PlayerGui")
 end
 
--- Exact 1:1 Icons from File Gop (Nexus_combined_loader.lua)
-LucianUI.Icons = {
-	Home = "rbxassetid://98755624629571",           -- Lucide house
-	Dashboard = "rbxassetid://139929981863901",     -- Lucide layout-dashboard
-	Activity = "rbxassetid://94212016861936",       -- Lucide activity
-	Fishing = "rbxassetid://71754848048049",        -- Lucide fishing-rod
-	Fish = "rbxassetid://124360663785796",          -- Lucide fish
-	Bot = "rbxassetid://80451686744860",            -- Lucide bot
-	Combat = "rbxassetid://81872698913435",         -- Lucide swords
-	Sword = "rbxassetid://124448418211665",         -- Lucide sword
-	Play = "rbxassetid://135609604299893",          -- Lucide play
-	Shop = "rbxassetid://128420521375441",          -- Lucide shopping-cart
-	Store = "rbxassetid://90338129673705",          -- Lucide store
-	Bag = "rbxassetid://71885477293226",            -- Lucide shopping-bag
-	Exchange = "rbxassetid://131324733048447",      -- Lucide arrow-left-right
-	Refresh = "rbxassetid://138133190015277",       -- Lucide refresh-cw
-	Repeat = "rbxassetid://121886242955173",        -- Lucide repeat
-	Coins = "rbxassetid://116510979641930",         -- Lucide coins
-	Gem = "rbxassetid://112904952151156",           -- Lucide gem
-	Quests = "rbxassetid://92649798577170",         -- Lucide clipboard-check
-	Scroll = "rbxassetid://74072101474951",         -- Lucide scroll
-	TodoList = "rbxassetid://132980603752108",      -- Lucide list-todo
-	Upgrade = "rbxassetid://81819858538839",        -- Lucide trending-up
-	Zap = "rbxassetid://130551565616516",           -- Lucide zap
-	Sparkles = "rbxassetid://138635884129147",      -- Lucide sparkles
-	Teleport = "rbxassetid://84279202219901",       -- Lucide map-pin
-	Compass = "rbxassetid://115123411028382",       -- Lucide compass
-	Navigation = "rbxassetid://79308213542922",     -- Lucide navigation
-	Send = "rbxassetid://127751956873796",          -- Lucide send
-	Settings = "rbxassetid://80758916183665",       -- Lucide settings gear
-	Sliders = "rbxassetid://85538382643347",        -- Lucide sliders-horizontal
-	Server = "rbxassetid://92188766517878",         -- Lucide server
-	Globe = "rbxassetid://114238209622913",         -- Lucide globe
-	Radio = "rbxassetid://85611589536956",          -- Lucide radio
-	Layers = "rbxassetid://81973586053257",         -- Lucide layers
-	User = "rbxassetid://81589895647169",           -- Lucide user
-	Profile = "rbxassetid://81589895647169",        -- Lucide user
-	Bell = "rbxassetid://97392696311902",           -- Lucide bell
-	Search = "rbxassetid://121018724060431",        -- Lucide search
-	Shield = "rbxassetid://110987169760162",        -- Lucide shield
-	Check = "rbxassetid://93898873302694",          -- Lucide check
-	Close = "rbxassetid://110786993356448",         -- Lucide x
-	Chevron = "rbxassetid://136188197552572",       -- Lucide chevron
-	Flame = "rbxassetid://98218034436456",          -- Lucide flame
-	Crown = "rbxassetid://127843403295538",         -- Lucide crown
-	Trophy = "rbxassetid://131545003268773",        -- Lucide trophy
-	Grid = "rbxassetid://10723345518",
-}
-
-local TAB_ICON_MAP = {
-	["session"] = LucianUI.Icons.Dashboard,
-	["home"] = LucianUI.Icons.Home,
-	["routine"] = LucianUI.Icons.Fishing,
-	["farming"] = LucianUI.Icons.Fishing,
-	["combat"] = LucianUI.Icons.Combat,
-	["shop"] = LucianUI.Icons.Shop,
-	["store"] = LucianUI.Icons.Store,
-	["exchange"] = LucianUI.Icons.Exchange,
-	["quests"] = LucianUI.Icons.Quests,
-	["quest"] = LucianUI.Icons.Quests,
-	["upgrade"] = LucianUI.Icons.Upgrade,
-	["teleport"] = LucianUI.Icons.Teleport,
-	["settings"] = LucianUI.Icons.Settings,
-	["setting"] = LucianUI.Icons.Settings,
-	["server hop"] = LucianUI.Icons.Globe,
-	["server"] = LucianUI.Icons.Server,
-	["layers"] = LucianUI.Icons.Layers,
-}
-
--- Motion parameters
-local SPRING_BOUNCE = TweenInfo.new(0.46, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-local SMOOTH_QUAD = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-local FAST_EASE = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-
-local function getSafeGuiParent(): Instance
-	local tries = {
-		function() return (gethui and gethui()) end,
-		function() return CoreGui end,
-		function() return Players.LocalPlayer:WaitForChild("PlayerGui") end,
-		function() return game:GetService("StarterGui") end,
-	}
-	for _, f in ipairs(tries) do
-		local ok, res = pcall(f)
-		if ok and typeof(res) == "Instance" then
-			return res
-		end
-	end
-	return game:GetService("StarterGui")
+local function DestroyExisting(name)
+    local parent = GetSafeGui()
+    local old = parent and parent:FindFirstChild(name)
+    if old then
+        pcall(function() old:Destroy() end)
+    end
 end
 
-local function makeDraggable(frame: GuiObject, handle: GuiObject)
-	local dragging = false
-	local dragInput: InputObject? = nil
-	local dragStart: Vector3 = Vector3.zero
-	local startPos: UDim2 = frame.Position
-
-	handle.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			dragStart = input.Position
-			startPos = frame.Position
-
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end)
-		end
-	end)
-
-	handle.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
-		end
-	end)
-
-	UserInputService.InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
-			local delta = input.Position - dragStart
-			frame.Position = UDim2.new(
-				startPos.X.Scale,
-				startPos.X.Offset + delta.X,
-				startPos.Y.Scale,
-				startPos.Y.Offset + delta.Y
-			)
-		end
-	end)
+local function Tween(instance, time, style, dir, props)
+    local duration = NexusLib.ReduceMotion and 0.01 or (time or 0.28)
+    local tween = TweenService:Create(
+        instance,
+        TweenInfo.new(duration, style or Enum.EasingStyle.Quart, dir or Enum.EasingDirection.Out),
+        props
+    )
+    tween:Play()
+    return tween
 end
 
--- ==============================================================================
--- NOTIFICATION SYSTEM (Floating Toast Stack)
--- ==============================================================================
-local notificationGui: ScreenGui? = nil
-
-function LucianUI:Notify(selfOrConfig, maybeConfig)
-	local cfg = type(selfOrConfig) == "table" and (selfOrConfig.Title or selfOrConfig.Message or selfOrConfig.Content or selfOrConfig.Duration) and selfOrConfig or maybeConfig or {}
-	local title = cfg.Title or "Nexus"
-	local message = cfg.Message or cfg.Content or cfg.Text or ""
-	local duration = tonumber(cfg.Duration) or 3
-
-	if not notificationGui or not notificationGui.Parent then
-		local parentGui = getSafeGuiParent()
-		local ng = Instance.new("ScreenGui")
-		ng.Name = "NexusNotifications"
-		ng.ResetOnSpawn = false
-		ng.DisplayOrder = 2147483646
-		ng.Parent = parentGui
-		notificationGui = ng
-
-		local stack = Instance.new("Frame")
-		stack.Name = "Stack"
-		stack.AnchorPoint = Vector2.new(1, 1)
-		stack.Position = UDim2.new(1, -20, 1, -85)
-		stack.Size = UDim2.new(0, 280, 0, 360)
-		stack.BackgroundTransparency = 1
-		stack.Parent = ng
-
-		local layout = Instance.new("UIListLayout")
-		layout.FillDirection = Enum.FillDirection.Vertical
-		layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-		layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-		layout.Padding = UDim.new(0, 8)
-		layout.SortOrder = Enum.SortOrder.LayoutOrder
-		layout.Parent = stack
-	end
-
-	local stack = notificationGui:FindFirstChild("Stack")
-	if not stack then return end
-
-	local card = Instance.new("Frame")
-	card.Name = "NotifyCard"
-	card.Size = UDim2.new(0, 260, 0, 56)
-	card.BackgroundColor3 = LucianUI.Tokens.Dark.Surface
-	card.Position = UDim2.new(1, 40, 0, 0)
-	card.BackgroundTransparency = 0.05
-	card.BorderSizePixel = 0
-	card.ClipsDescendants = true
-	card.Parent = stack
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 14)
-	corner.Parent = card
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = LucianUI.Tokens.Dark.Line
-	stroke.Transparency = 0.82
-	stroke.Thickness = 1
-	stroke.Parent = card
-
-	local stripe = Instance.new("Frame")
-	stripe.Position = UDim2.new(0, 0, 0, 8)
-	stripe.Size = UDim2.new(0, 3, 1, -16)
-	stripe.BackgroundColor3 = LucianUI.Tokens.Dark.Accent
-	stripe.BorderSizePixel = 0
-	stripe.Parent = card
-
-	local sCorner = Instance.new("UICorner")
-	sCorner.CornerRadius = UDim.new(1, 0)
-	sCorner.Parent = stripe
-
-	local t = Instance.new("TextLabel")
-	t.Position = UDim2.new(0, 14, 0, 8)
-	t.Size = UDim2.new(1, -38, 0, 16)
-	t.BackgroundTransparency = 1
-	t.Text = title
-	t.TextColor3 = LucianUI.Tokens.Dark.Ink
-	t.Font = getUIFont("Bold")
-	t.TextSize = 12
-	t.TextXAlignment = Enum.TextXAlignment.Left
-	t.Parent = card
-
-	local m = Instance.new("TextLabel")
-	m.Position = UDim2.new(0, 14, 0, 26)
-	m.Size = UDim2.new(1, -38, 0, 22)
-	m.BackgroundTransparency = 1
-	m.Text = message
-	m.TextColor3 = LucianUI.Tokens.Dark.Ink2
-	m.Font = getUIFont("Medium")
-	m.TextSize = 10
-	m.TextWrapped = true
-	m.TextXAlignment = Enum.TextXAlignment.Left
-	m.TextYAlignment = Enum.TextYAlignment.Top
-	m.Parent = card
-
-	local closeBtn = Instance.new("TextButton")
-	closeBtn.Position = UDim2.new(1, -22, 0, 6)
-	closeBtn.Size = UDim2.new(0, 16, 0, 16)
-	closeBtn.BackgroundTransparency = 1
-	closeBtn.Text = "×"
-	closeBtn.TextColor3 = LucianUI.Tokens.Dark.Ink3
-	closeBtn.Font = getUIFont("Bold")
-	closeBtn.TextSize = 14
-	closeBtn.Parent = card
-
-	TweenService:Create(card, SPRING_BOUNCE, { Position = UDim2.new(0, 0, 0, 0) }):Play()
-
-	local closing = false
-	local function dismiss()
-		if closing then return end
-		closing = true
-		local tOut = TweenService:Create(card, FAST_EASE, { Position = UDim2.new(1, 50, 0, 0), BackgroundTransparency = 1 })
-		tOut:Play()
-		tOut.Completed:Connect(function()
-			card:Destroy()
-		end)
-	end
-
-	closeBtn.MouseButton1Click:Connect(dismiss)
-	task.delay(duration, dismiss)
+local function New(class, props, children)
+    local inst = Instance.new(class)
+    local parent
+    for k, v in pairs(props or {}) do
+        if k == "Parent" then
+            parent = v
+        else
+            inst[k] = v
+        end
+    end
+    for _, child in ipairs(children or {}) do
+        child.Parent = inst
+    end
+    inst.Parent = parent
+    return inst
 end
 
--- ==============================================================================
--- ELEMENT #041: COMPACT NOTCHED BOTTOM TAB BAR (Unified 320x60px -> Scalable)
--- ==============================================================================
-local TabBar041 = {}
-TabBar041.__index = TabBar041
-
-function TabBar041.new(config: {
-	Parent: Instance?,
-	ThemeName: string?,
-	Width: number?,
-	Height: number?,
-	Tabs: { { Id: string, Title: string, Icon: string, Badge: number? } }?,
-	OnSelect: ((index: number) -> ())?,
-	OnActiveClick: ((index: number) -> ())?
-})
-	local self = setmetatable({}, TabBar041)
-	self.ThemeName = config.ThemeName or "Dark"
-	self.Theme = LucianUI.Tokens[self.ThemeName] or LucianUI.Tokens.Dark
-	self.Width = config.Width or 420
-	self.Height = config.Height or 56
-	self.OnSelect = config.OnSelect
-	self.OnActiveClick = config.OnActiveClick
-	self.TabsData = config.Tabs or {}
-	self.CurrentIndex = 1
-	self.TabButtons = {}
-	self.TabIcons = {}
-	self.TabLabels = {}
-	self.TabStripes = {}
-	self.TabBadges = {}
-
-	local root = Instance.new("Frame")
-	root.Name = "Lucian041_TabBar"
-	root.AnchorPoint = Vector2.new(0.5, 1)
-	root.Position = UDim2.new(0.5, 0, 1, -16)
-	root.Size = UDim2.new(0, self.Width, 0, self.Height)
-	root.BackgroundTransparency = 1
-	root.ZIndex = 30
-	root.Parent = config.Parent
-	self.Root = root
-
-	-- Single, continuous solid capsule bar (will never divide, tear, or leave detached pill fragments)
-	local barWrap = Instance.new("Frame")
-	barWrap.Name = "BarWrapper"
-	barWrap.Position = UDim2.new(0, 0, 0, 0)
-	barWrap.Size = UDim2.new(1, 0, 1, 0)
-	barWrap.BackgroundColor3 = self.Theme.Surface
-	barWrap.BorderSizePixel = 0
-	barWrap.ZIndex = 31
-	barWrap.Parent = root
-	self.BarWrap = barWrap
-
-	local barCorner = Instance.new("UICorner")
-	barCorner.CornerRadius = UDim.new(0, 24)
-	barCorner.Parent = barWrap
-
-	local barStroke = Instance.new("UIStroke")
-	barStroke.Color = self.Theme.Line
-	barStroke.Transparency = self.Theme.LineTransparency
-	barStroke.Thickness = 1
-	barStroke.Parent = barWrap
-	self.BarStroke = barStroke
-
-
-
-
-
-	-- Lucian #041 signature floating gradient bubble
-	local bubble = Instance.new("Frame")
-	bubble.Name = "FloatingBubble"
-	bubble.AnchorPoint = Vector2.new(0.5, 0.5)
-	bubble.Position = UDim2.new(0, 0, 0, -12)
-	bubble.Size = UDim2.new(0, 44, 0, 44)
-	bubble.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	bubble.BorderSizePixel = 0
-	bubble.ClipsDescendants = true
-	bubble.ZIndex = 50
-	bubble.Parent = root
-	self.Bubble = bubble
-
-	local bCorner = Instance.new("UICorner")
-	bCorner.CornerRadius = UDim.new(1, 0)
-	bCorner.Parent = bubble
-
-	local bStroke = Instance.new("UIStroke")
-	bStroke.Color = Color3.fromRGB(255, 255, 255)
-	bStroke.Transparency = 0.55
-	bStroke.Thickness = 1.2
-	bStroke.Parent = bubble
-
-	local bGrad = Instance.new("UIGradient")
-	bGrad.Color = self.Theme.Gradient
-	bGrad.Rotation = 45
-	bGrad.Parent = bubble
-	self.BubbleGrad = bGrad
-
-	local bIcon = Instance.new("ImageLabel")
-	bIcon.Name = "BubbleIcon"
-	bIcon.AnchorPoint = Vector2.new(0.5, 0.5)
-	bIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
-	bIcon.Size = UDim2.new(0, 20, 0, 20)
-	bIcon.BackgroundTransparency = 1
-	bIcon.ImageColor3 = self.Theme.AccentInk
-	bIcon.ZIndex = 51
-	bIcon.Parent = bubble
-	self.BubbleIcon = bIcon
-
-	local bubbleBtn = Instance.new("TextButton")
-	bubbleBtn.Name = "BubbleClickArea"
-	bubbleBtn.Size = UDim2.new(1, 0, 1, 0)
-	bubbleBtn.BackgroundTransparency = 1
-	bubbleBtn.Text = ""
-	bubbleBtn.ZIndex = 52
-	bubbleBtn.Parent = bubble
-	bubbleBtn.MouseButton1Click:Connect(function()
-		if self.OnActiveClick then
-			self.OnActiveClick(self.CurrentIndex)
-		end
-	end)
-
-	local tabsList = Instance.new("Frame")
-	tabsList.Name = "TabsList"
-	tabsList.Size = UDim2.new(1, 0, 1, 0)
-	tabsList.BackgroundTransparency = 1
-	tabsList.ZIndex = 35
-	tabsList.Parent = root
-	self.TabsList = tabsList
-
-	self:RebuildTabs()
-	return self
+local function Corner(radius)
+    return New("UICorner", { CornerRadius = UDim.new(0, radius) })
 end
 
-function TabBar041:GetTabCenterX(index: number): number
-	local totalTabs = #self.TabsData
-	if totalTabs == 0 then return self.Width / 2 end
-	local pad = 12
-	local avail = self.Width - pad * 2
-	local tabWidth = avail / totalTabs
-	return pad + (index - 0.5) * tabWidth
+local function Rim(transparency, color)
+    return New("UIStroke", {
+        Name = "UIStroke",
+        Color = color or Theme.Stroke,
+        Transparency = transparency or Theme.StrokeAlpha,
+        Thickness = 1,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+    })
 end
 
-function TabBar041:RebuildTabs()
-	for _, child in ipairs(self.TabsList:GetChildren()) do
-		child:Destroy()
-	end
-	self.TabButtons = {}
-	self.TabIcons = {}
-	self.TabLabels = {}
-	self.TabStripes = {}
-	self.TabBadges = {}
-
-	local totalTabs = #self.TabsData
-	if totalTabs == 0 then return end
-
-	-- Dynamically scale width for number of tabs
-	local targetWidth = math.clamp(totalTabs * 48 + 32, 320, 560)
-	self.Width = targetWidth
-	self.Root.Size = UDim2.new(0, self.Width, 0, self.Height)
-
-	local pad = 12
-	local avail = self.Width - pad * 2
-	local tabWidth = avail / totalTabs
-
-	for i, tabData in ipairs(self.TabsData) do
-		local btn = Instance.new("TextButton")
-		btn.Name = "Tab_" .. i
-		btn.Position = UDim2.new(0, pad + (i - 1) * tabWidth, 0, 0)
-		btn.Size = UDim2.new(0, tabWidth, 1, 0)
-		btn.BackgroundTransparency = 1
-		btn.Text = ""
-		btn.AutoButtonColor = false
-		btn.ZIndex = 36
-		btn.Parent = self.TabsList
-
-		local iconContainer = Instance.new("Frame")
-		iconContainer.Name = "IconContainer"
-		iconContainer.AnchorPoint = Vector2.new(0.5, 0.5)
-		iconContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
-		iconContainer.Size = UDim2.new(0, 20, 0, 20)
-		iconContainer.BackgroundTransparency = 1
-		iconContainer.ZIndex = 37
-		iconContainer.Parent = btn
-
-		local iconImg = Instance.new("ImageLabel")
-		iconImg.Name = "Icon"
-		iconImg.Size = UDim2.new(1, 0, 1, 0)
-		iconImg.BackgroundTransparency = 1
-		iconImg.Image = tabData.Icon
-		iconImg.ImageColor3 = self.Theme.Ink3
-		iconImg.ZIndex = 37
-		iconImg.Parent = iconContainer
-
-		local label = Instance.new("TextLabel")
-		label.Name = "Label"
-		label.AnchorPoint = Vector2.new(0.5, 1)
-		label.Position = UDim2.new(0.5, 0, 1, -8)
-		label.Size = UDim2.new(1, 0, 0, 14)
-		label.BackgroundTransparency = 1
-		label.Text = tabData.Title
-		label.TextColor3 = self.Theme.Accent
-		label.Font = getUIFont("Bold")
-		label.TextSize = 11
-		label.TextTransparency = 1
-		label.TextTruncate = Enum.TextTruncate.None
-		label.TextWrapped = false
-		label.ZIndex = 38
-		label.Parent = btn
-
-		local stripe = Instance.new("Frame")
-		stripe.Name = "ActiveStripe"
-		stripe.AnchorPoint = Vector2.new(0.5, 1)
-		stripe.Position = UDim2.new(0.5, 0, 1, -3)
-		stripe.Size = UDim2.new(0, 20, 0, 3)
-		stripe.BackgroundColor3 = self.Theme.Accent
-		stripe.BorderSizePixel = 0
-		stripe.BackgroundTransparency = 1
-		stripe.ZIndex = 39
-		stripe.Parent = btn
-
-		local sCorn = Instance.new("UICorner")
-		sCorn.CornerRadius = UDim.new(1, 0)
-		sCorn.Parent = stripe
-
-		local badge
-		if tabData.Badge and tabData.Badge > 0 then
-			local bFrame = Instance.new("Frame")
-			bFrame.Name = "Badge"
-			bFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-			bFrame.Position = UDim2.new(0.5, 10, 0, 14)
-			bFrame.Size = UDim2.new(0, 14, 0, 14)
-			bFrame.BackgroundColor3 = self.Theme.Danger
-			bFrame.BorderSizePixel = 0
-			bFrame.ZIndex = 41
-			bFrame.Parent = btn
-
-			local bCorn = Instance.new("UICorner")
-			bCorn.CornerRadius = UDim.new(1, 0)
-			bCorn.Parent = bFrame
-
-			local bStrk = Instance.new("UIStroke")
-			bStrk.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-			bStrk.Color = self.Theme.Surface
-			bStrk.Thickness = 2
-			bStrk.Parent = bFrame
-
-			local bText = Instance.new("TextLabel")
-			bText.Size = UDim2.new(1, 0, 1, 0)
-			bText.BackgroundTransparency = 1
-			bText.Text = tostring(tabData.Badge)
-			bText.TextColor3 = Color3.fromRGB(255, 255, 255)
-			bText.TextSize = 9
-			bText.Font = getUIFont("Bold")
-			bText.ZIndex = 42
-			bText.Parent = bFrame
-
-			badge = bFrame
-		end
-
-		self.TabButtons[i] = btn
-		self.TabIcons[i] = iconImg
-		self.TabLabels[i] = label
-		self.TabStripes[i] = stripe
-		self.TabBadges[i] = badge
-
-		btn.MouseButton1Click:Connect(function()
-			if self.CurrentIndex == i then
-				if self.OnActiveClick then
-					self.OnActiveClick(i)
-				else
-					self:Deselect()
-				end
-			else
-				self:SelectTab(i)
-				if self.OnSelect then
-					self.OnSelect(i)
-				end
-			end
-		end)
-
-		btn.MouseEnter:Connect(function()
-			if self.CurrentIndex ~= i then
-				TweenService:Create(iconImg, FAST_EASE, { ImageColor3 = self.Theme.Ink, ImageTransparency = 0 }):Play()
-			end
-		end)
-		btn.MouseLeave:Connect(function()
-			if self.CurrentIndex ~= i then
-				TweenService:Create(iconImg, FAST_EASE, { ImageColor3 = self.Theme.Ink3, ImageTransparency = 0.45 }):Play()
-			end
-		end)
-	end
-
-	self:SelectTab(self.CurrentIndex or 1, true)
+local function Label(parent, props)
+    local p = {
+        BackgroundTransparency = 1,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 12,
+        TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Parent = parent,
+    }
+    for k, v in pairs(props) do
+        p[k] = v
+    end
+    return New("TextLabel", p)
 end
 
-function TabBar041:SelectTab(index: number, immediate: boolean?)
-	if index < 1 or index > #self.TabsData then return end
-	self.CurrentIndex = index
-	local targetX = self:GetTabCenterX(index)
+-- Vector 2-stroke chevron (replaces Unicode characters that render as [?] in Roblox fonts)
+local function Chevron(parent, props, color)
+    local c = color or Theme.Dim
+    local holder = New("Frame", {
+        Size = UDim2.fromOffset(12, 12),
+        BackgroundTransparency = 1,
+        Parent = parent,
+    })
+    for k, v in pairs(props or {}) do
+        holder[k] = v
+    end
+    local left = New("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, -2, 0.5, 0),
+        Size = UDim2.fromOffset(6, 2),
+        Rotation = 42,
+        BackgroundColor3 = c,
+        BorderSizePixel = 0,
+        Parent = holder,
+    }, { Corner(1) })
+    local right = New("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, 2, 0.5, 0),
+        Size = UDim2.fromOffset(6, 2),
+        Rotation = -42,
+        BackgroundColor3 = c,
+        BorderSizePixel = 0,
+        Parent = holder,
+    }, { Corner(1) })
 
-	local bubblePos = UDim2.new(0, targetX, 0, -12)
-
-	local activeTabData = self.TabsData[index]
-	if activeTabData and self.BubbleIcon then
-		self.BubbleIcon.Image = activeTabData.Icon
-		self.BubbleIcon.ImageTransparency = 0
-	end
-
-	self.Bubble.Visible = true
-
-	if immediate then
-		self.Bubble.Position = bubblePos
-		self.Bubble.Size = UDim2.new(0, 44, 0, 44)
-		if self.BubbleIcon then self.BubbleIcon.ImageTransparency = 0 end
-	else
-		TweenService:Create(self.Bubble, SPRING_BOUNCE, { Position = bubblePos, Size = UDim2.new(0, 44, 0, 44) }):Play()
-		if self.BubbleIcon then
-			TweenService:Create(self.BubbleIcon, FAST_EASE, { ImageTransparency = 0 }):Play()
-		end
-	end
-
-	for i, tabData in ipairs(self.TabsData) do
-		local icon = self.TabIcons[i]
-		local label = self.TabLabels[i]
-		local stripe = self.TabStripes and self.TabStripes[i]
-		local badge = self.TabBadges[i]
-
-		if i == index then
-			if icon then
-				TweenService:Create(icon, FAST_EASE, { ImageTransparency = 1 }):Play()
-			end
-			if label then
-				label.Visible = true
-				TweenService:Create(label, FAST_EASE, { Position = UDim2.new(0.5, 0, 1, -8), TextTransparency = 0 }):Play()
-			end
-			if stripe then
-				stripe.Visible = true
-				TweenService:Create(stripe, FAST_EASE, { Size = UDim2.new(0, 22, 0, 3), BackgroundTransparency = 0 }):Play()
-			end
-			if badge then
-				badge.Visible = false
-			end
-		else
-			if icon then
-				TweenService:Create(icon, FAST_EASE, { ImageColor3 = self.Theme.Ink3, ImageTransparency = 0.45 }):Play()
-			end
-			if label then
-				TweenService:Create(label, FAST_EASE, { Position = UDim2.new(0.5, 0, 1, -4), TextTransparency = 1 }):Play()
-			end
-			if stripe then
-				TweenService:Create(stripe, FAST_EASE, { Size = UDim2.new(0, 8, 0, 3), BackgroundTransparency = 1 }):Play()
-			end
-			if badge and tabData.Badge and tabData.Badge > 0 then
-				badge.Visible = true
-			end
-		end
-	end
+    local api = { Frame = holder, Left = left, Right = right }
+    function api:SetOpen(open, activeColor, idleColor)
+        local col = open and (activeColor or Theme.Text) or (idleColor or c)
+        Tween(holder, 0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Rotation = open and 180 or 0 })
+        Tween(left, 0.2, nil, nil, { BackgroundColor3 = col })
+        Tween(right, 0.2, nil, nil, { BackgroundColor3 = col })
+    end
+    return api
 end
 
-function TabBar041:Deselect()
-	self.CurrentIndex = 0
-	TweenService:Create(self.Bubble, FAST_EASE, { Size = UDim2.new(0, 0, 0, 0) }):Play()
-	if self.BubbleIcon then
-		TweenService:Create(self.BubbleIcon, FAST_EASE, { ImageTransparency = 1 }):Play()
-	end
+--------------------------------------------------------------------------
+-- embedded logo (clean 128px pure-white alpha PNG + geometric shard fallback)
+--------------------------------------------------------------------------
+local LOGO_B64 = [=[
+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
+]=]
 
-	task.delay(0.2, function()
-		if self.CurrentIndex == 0 and self.Bubble then
-			self.Bubble.Visible = false
-		end
-	end)
+local B64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
-	for i, _ in ipairs(self.TabsData) do
-		local icon = self.TabIcons[i]
-		local label = self.TabLabels[i]
-		local stripe = self.TabStripes and self.TabStripes[i]
-		if icon then
-			TweenService:Create(icon, FAST_EASE, { ImageColor3 = self.Theme.Ink3, ImageTransparency = 0.45 }):Play()
-		end
-		if label then
-			TweenService:Create(label, FAST_EASE, { Position = UDim2.new(0.5, 0, 1, -4), TextTransparency = 1 }):Play()
-		end
-		if stripe then
-			TweenService:Create(stripe, FAST_EASE, { Size = UDim2.new(0, 8, 0, 3), BackgroundTransparency = 1 }):Play()
-		end
-	end
+local function DecodeBase64(data)
+    if type(crypt) == "table" and type(crypt.base64decode) == "function" then
+        local ok, res = pcall(crypt.base64decode, data)
+        if ok and res and #res > 0 then return res end
+    end
+    local lookup = {}
+    for i = 1, #B64_CHARS do
+        lookup[B64_CHARS:sub(i, i)] = i - 1
+    end
+    data = data:gsub("[^%w%+/=]", "")
+    local out, n = {}, 0
+    for i = 1, #data, 4 do
+        local a = lookup[data:sub(i, i)]
+        local b = lookup[data:sub(i + 1, i + 1)]
+        local c = lookup[data:sub(i + 2, i + 2)]
+        local d = lookup[data:sub(i + 3, i + 3)]
+        if a and b then
+            local v = a * 262144 + b * 4096 + (c or 0) * 64 + (d or 0)
+            n = n + 1
+            out[n] = string.char(math.floor(v / 65536) % 256)
+            if c then
+                n = n + 1
+                out[n] = string.char(math.floor(v / 256) % 256)
+            end
+            if d then
+                n = n + 1
+                out[n] = string.char(v % 256)
+            end
+        end
+    end
+    return table.concat(out)
 end
 
-function TabBar041:SetBadge(index: number, count: number?)
-	if not self.TabsData[index] then return end
-	self.TabsData[index].Badge = count
-	local badge = self.TabBadges[index]
-	if count and count > 0 then
-		if badge then
-			badge.Visible = (self.CurrentIndex ~= index)
-			local txt = badge:FindFirstChildOfClass("TextLabel")
-			if txt then txt.Text = tostring(count) end
-		else
-			self:RebuildTabs()
-		end
-	else
-		if badge then badge.Visible = false end
-	end
+local NEXUS_ASSET = "rbxassetid://95635434702674"
+
+local function GetLogoAsset()
+    if NexusLib.LogoAsset ~= nil then
+        return NexusLib.LogoAsset
+    end
+    -- If executor supports custom file assets, decode HD base64
+    local ok, asset = pcall(function()
+        local getAsset = getcustomasset or getsynasset
+        if not (writefile and getAsset) then
+            error("no file api")
+        end
+        local name = "nexus_logo_white_v5_hd.png"
+        writefile(name, DecodeBase64(LOGO_B64))
+        return getAsset(name)
+    end)
+    if ok and asset and asset ~= "" then
+        NexusLib.LogoAsset = asset
+        return asset
+    end
+    -- Universal ultra-sharp 2K Roblox asset ID fallback (works natively in Roblox Studio & every executor)
+    NexusLib.LogoAsset = NEXUS_ASSET
+    return NexusLib.LogoAsset
 end
 
-function TabBar041:SetTitle(index: number, title: string)
-	if self.TabsData[index] then
-		self.TabsData[index].Title = title
-		local lbl = self.TabLabels[index]
-		if lbl then lbl.Text = title end
-	end
+-- Renders the logo with crystal clarity across all environments
+local function Logo(parent, props)
+    local asset = GetLogoAsset()
+    local p = {
+        BackgroundTransparency = 1,
+        Image = (asset and asset ~= "") and asset or NEXUS_ASSET,
+        ImageColor3 = Theme.White,
+        ScaleType = Enum.ScaleType.Fit,
+        Parent = parent,
+    }
+    for k, v in pairs(props) do p[k] = v end
+    return New("ImageLabel", p)
 end
 
-function TabBar041:SetIcon(index: number, icon: string)
-	if self.TabsData[index] then
-		self.TabsData[index].Icon = icon
-		local img = self.TabIcons[index]
-		if img then img.Image = icon end
-		if self.CurrentIndex == index and self.BubbleIcon then
-			self.BubbleIcon.Image = icon
-		end
-	end
-end
--- ==============================================================================
--- EXACT NEXUS VECTOR POLYGON RASTERIZER (256x256 STANDALONE MATHEMATICAL 'N')
--- ==============================================================================
-local NEXUS_POLYGONS = {
-	{
-		Vector2.new(0, 256), Vector2.new(0, 0),
-		Vector2.new(64, 0), Vector2.new(256, 256),
-		Vector2.new(179.2, 256), Vector2.new(64, 102.4),
-		Vector2.new(64, 256),
-	},
-	{
-		Vector2.new(192, 0), Vector2.new(256, 0),
-		Vector2.new(256, 179.2), Vector2.new(192, 89.6),
-	},
-}
-
-local function drawN(parent: Instance, customScale: number?, customStep: number?, customColor: Color3?)
-	local icon = Instance.new("Frame")
-	icon.Name = "NexusIcon"
-	icon.AnchorPoint = Vector2.new(0.5, 0.5)
-	icon.Position = UDim2.fromScale(0.5, 0.5)
-	icon.Size = UDim2.fromScale(customScale or 0.62, customScale or 0.62)
-	icon.BackgroundTransparency = 1
-	icon.Parent = parent
-
-	-- Dựng hình bằng các dải ngang chuẩn, chống mờ viền subpixel
-	local step = customStep or 3
-	local col = customColor or Color3.fromRGB(255, 255, 255)
-
-	for _, polygon in ipairs(NEXUS_POLYGONS) do
-		for y = 0, 254, step do
-			local scanY = y + step / 2
-			local intersections = {}
-
-			for i, a in ipairs(polygon) do
-				local b = polygon[i % #polygon + 1]
-
-				if (a.Y <= scanY and b.Y > scanY)
-					or (b.Y <= scanY and a.Y > scanY) then
-					local x = a.X
-						+ (scanY - a.Y) * (b.X - a.X)
-						/ (b.Y - a.Y)
-
-					table.insert(intersections, x)
-				end
-			end
-
-			table.sort(intersections)
-
-			for i = 1, #intersections - 1, 2 do
-				local left = intersections[i]
-				local right = intersections[i + 1]
-
-				local strip = Instance.new("Frame")
-				strip.BorderSizePixel = 0
-				strip.BackgroundColor3 = col
-				strip.Position = UDim2.fromScale(left / 256, y / 256)
-				strip.Size = UDim2.fromScale(
-					(right - left) / 256,
-					(step + 0.7) / 256
-				)
-				strip.Parent = icon
-			end
-		end
-	end
-	return icon
-end
-
-local NEXUS_2K_ASSET = "rbxassetid://79122933233892"
-
-local function drawNexusMonogram(container: GuiObject, size: number)
-	container:ClearAllChildren()
-
-	local bg = Instance.new("Frame")
-	bg.Name = "EmblemBg"
-	bg.Size = UDim2.new(1, 0, 1, 0)
-	bg.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-	bg.BorderSizePixel = 0
-	bg.Parent = container
-
-	local bgCorner = Instance.new("UICorner")
-	bgCorner.CornerRadius = UDim.new(0, math.clamp(math.floor(size * 0.2), 4, 8))
-	bgCorner.Parent = bg
-
-	local bgStroke = Instance.new("UIStroke")
-	bgStroke.Color = Color3.fromRGB(70, 70, 70)
-	bgStroke.Thickness = 1
-	bgStroke.Parent = bg
-
-	local img = Instance.new("ImageLabel")
-	img.Name = "NexusN_2K"
-	img.AnchorPoint = Vector2.new(0.5, 0.5)
-	img.Position = UDim2.fromScale(0.5, 0.5)
-	img.Size = UDim2.fromScale(0.62, 0.62)
-	img.BackgroundTransparency = 1
-	img.Image = NEXUS_2K_ASSET
-	img.ImageColor3 = Color3.fromRGB(255, 255, 255)
-	img.Parent = bg
-end
-
--- ==============================================================================
--- MOBILE FLOATING TOGGLE BUTTON (2K RESOLUTION & 4 TIGHT CORNERS)
--- ==============================================================================
-local function createMobileToggleButton(parentGui: Instance, window)
-	local button = Instance.new("TextButton")
-	button.Name = "NexusButton"
-	button.Size = UDim2.fromOffset(48, 48)
-	button.Position = UDim2.new(0, 20, 0.5, -24)
-	button.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-	button.BorderSizePixel = 0
-	button.Text = ""
-	button.AutoButtonColor = false
-	button.ZIndex = 100
-	button.Parent = parentGui
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8) -- 4 goc nho lai
-	corner.Parent = button
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(70, 70, 70)
-	stroke.Thickness = 1
-	stroke.Parent = button
-
-	local nImage = Instance.new("ImageLabel")
-	nImage.Name = "NexusN_2K"
-	nImage.AnchorPoint = Vector2.new(0.5, 0.5)
-	nImage.Position = UDim2.fromScale(0.5, 0.5)
-	nImage.Size = UDim2.fromScale(0.6, 0.6)
-	nImage.BackgroundTransparency = 1
-	nImage.Image = NEXUS_2K_ASSET
-	nImage.ImageColor3 = Color3.fromRGB(255, 255, 255)
-	nImage.Parent = button
-
-	-- Touch & Mouse Draggable with Edge Snapping
-	local dragging = false
-	local dragStart = Vector2.new()
-	local startPos = UDim2.new()
-	local totalMoved = 0
-
-	button.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			dragStart = input.Position
-			startPos = button.Position
-			totalMoved = 0
-			TweenService:Create(button, FAST_EASE, { Size = UDim2.fromOffset(42, 42) }):Play()
-		end
-	end)
-
-	UserInputService.InputChanged:Connect(function(input)
-		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			local delta = input.Position - dragStart
-			totalMoved = totalMoved + delta.Magnitude
-			button.Position = UDim2.new(
-				startPos.X.Scale,
-				startPos.X.Offset + delta.X,
-				startPos.Y.Scale,
-				startPos.Y.Offset + delta.Y
-			)
-		end
-	end)
-
-	local function onDragEnd()
-		if not dragging then return end
-		dragging = false
-		TweenService:Create(button, SPRING_BOUNCE, { Size = UDim2.fromOffset(48, 48) }):Play()
-
-		if totalMoved < 8 then
-			window:Toggle()
-			local isOpen = window.IsOpen
-			TweenService:Create(stroke, FAST_EASE, {
-				Color = isOpen and Color3.fromRGB(167, 139, 250) or Color3.fromRGB(70, 70, 70)
-			}):Play()
-		else
-			local cam = workspace.CurrentCamera
-			local viewportWidth = cam and cam.ViewportSize.X or 800
-			local curAbsX = button.AbsolutePosition.X
-			local snapX = 20
-			if curAbsX > viewportWidth / 2 then
-				snapX = viewportWidth - 68
-			end
-			TweenService:Create(button, SPRING_BOUNCE, {
-				Position = UDim2.new(0, snapX, button.Position.Y.Scale, button.Position.Y.Offset)
-			}):Play()
-		end
-	end
-
-	UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			onDragEnd()
-		end
-	end)
-
-	return button
-end
--- ==============================================================================
--- ELEMENT #040: COMPACT LUMEN RAIL NAVIGATION & MAIN CONTENT INTERFACE
--- ==============================================================================
-local Element040 = {}
-Element040.__index = Element040
-
-function Element040.new(config: {
-	Title: string?,
-	SubTitle: string?,
-	Subtitle: string?,
-	Logo: string?,
-	UserName: string?,
-	UserRole: string?,
-	UserAvatar: string?,
-	Theme: string?,
-	Width: number?,
-	Height: number?,
-	Parent: Instance?
-})
-	local self = setmetatable({}, Element040)
-	self.ThemeName = config.Theme or "Dark"
-	self.Theme = LucianUI.Tokens[self.ThemeName] or LucianUI.Tokens.Dark
-	self.Width = config.Width or 480
-	self.Height = config.Height or 340
-	self.IsWide = false
-	self.Tabs = {}
-	self.RailItems = {}
-	self.CurrentIndex = 1
-	self.IsOpen = true
-
-	local parentGui = config.Parent or getSafeGuiParent()
-	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "Nexus_LucianUI_" .. tostring(math.random(1000, 9999))
-	screenGui.ResetOnSpawn = false
-	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	screenGui.Parent = parentGui
-	self.ScreenGui = screenGui
-
-	-- Master Container
-	local container = Instance.new("Frame")
-	container.Name = "Lucian040_Root"
-	container.AnchorPoint = Vector2.new(0.5, 0.5)
-	container.Position = UDim2.new(0.5, 0, 0.5, 0)
-	container.Size = UDim2.new(0, self.Width, 0, self.Height)
-	container.BackgroundTransparency = 1
-	container.Parent = screenGui
-	self.Root = container
-
-	-- Left Collapsible Rail (56px collapsed, 150px wide)
-	local rail = Instance.new("Frame")
-	rail.Name = "Rail"
-	rail.Position = UDim2.new(0, 0, 0, 0)
-	rail.Size = UDim2.new(0, 56, 1, 0)
-	rail.BackgroundColor3 = self.ThemeName == "Light" and self.Theme.Ink or Color3.fromRGB(18, 19, 27)
-	local railStroke = Instance.new("UIStroke")
-	railStroke.Color = Color3.fromRGB(255, 255, 255)
-	railStroke.Transparency = 0.92
-	railStroke.Thickness = 1
-	railStroke.Parent = rail
-	rail.BorderSizePixel = 0
-	rail.ClipsDescendants = true
-	rail.ZIndex = 10
-	rail.Parent = container
-	self.Rail = rail
-
-	local railCorner = Instance.new("UICorner")
-	railCorner.CornerRadius = UDim.new(0, 20)
-	railCorner.Parent = rail
-
-	makeDraggable(container, rail)
-
-	-- Top Brand (.u040-top)
-	local topBar = Instance.new("Frame")
-	topBar.Name = "TopBar"
-	topBar.Size = UDim2.new(1, 0, 0, 36)
-	topBar.Position = UDim2.new(0, 9, 0, 10)
-	topBar.BackgroundTransparency = 1
-	topBar.ZIndex = 11
-	topBar.Parent = rail
-
-	local logo = Instance.new("Frame")
-	logo.Name = "Logo"
-	logo.Size = UDim2.new(0, 28, 0, 28)
-	logo.BackgroundTransparency = 1
-	logo.BorderSizePixel = 0
-	logo.ZIndex = 12
-	logo.Parent = topBar
-
-	local logoCorner = Instance.new("UICorner")
-	logoCorner.CornerRadius = UDim.new(0, 9)
-	logoCorner.Parent = logo
-
-	local logoGrad = Instance.new("UIGradient")
-	logoGrad.Color = self.Theme.Gradient
-	logoGrad.Rotation = 45
-	logoGrad.Parent = logo
-
-	local logoImg = Instance.new("ImageLabel")
-	logoImg.Name = "LogoImage"
-	logoImg.AnchorPoint = Vector2.new(0.5, 0.5)
-	logoImg.Position = UDim2.new(0.5, 0, 0.5, 0)
-	logoImg.Size = UDim2.new(0, 18, 0, 18)
-	logoImg.BackgroundTransparency = 1
-	logoImg.ImageColor3 = Color3.fromRGB(255, 255, 255)
-	logoImg.ZIndex = 13
-	logoImg.Visible = false
-	logoImg.Parent = logo
-	self.LogoImage = logoImg
-
-	if config.Logo and config.Logo ~= "" then
-		logoImg.Image = config.Logo
-		logoImg.Visible = true
-	else
-		drawNexusMonogram(logo, 28)
-	end
-
-	local brandName = Instance.new("TextLabel")
-	brandName.Name = "BrandName"
-	brandName.Position = UDim2.new(0, 38, 0, 0)
-	brandName.Size = UDim2.new(0, 90, 1, 0)
-	brandName.BackgroundTransparency = 1
-	brandName.Text = config.Title or "NEXUS"
-	brandName.TextColor3 = Color3.fromRGB(244, 240, 232)
-	brandName.Font = getUIFont("Bold")
-	brandName.TextSize = 14
-	brandName.TextXAlignment = Enum.TextXAlignment.Left
-	brandName.TextTransparency = 1
-	brandName.ZIndex = 12
-	brandName.Parent = topBar
-	self.BrandName = brandName
-
-	-- Expand/Collapse Toggle Button (.u040-tog) matching exact reference image
-	local togBtn = Instance.new("TextButton")
-	togBtn.Name = "ExpandToggle"
-	togBtn.AnchorPoint = Vector2.new(1, 0)
-	togBtn.Position = UDim2.new(1, -2, 0, 14)
-	togBtn.Size = UDim2.new(0, 20, 0, 26)
-	togBtn.BackgroundColor3 = Color3.fromRGB(38, 40, 50)
-	togBtn.BackgroundTransparency = 0
-	togBtn.BorderSizePixel = 0
-	togBtn.Text = ""
-	togBtn.AutoButtonColor = false
-	togBtn.ZIndex = 15
-	togBtn.Parent = rail
-	self.TogBtn = togBtn
-
-	local tCorner = Instance.new("UICorner")
-	tCorner.CornerRadius = UDim.new(0, 6)
-	tCorner.Parent = togBtn
-
-	local tStroke = Instance.new("UIStroke")
-	tStroke.Color = Color3.fromRGB(65, 68, 82)
-	tStroke.Transparency = 0.3
-	tStroke.Thickness = 1
-	tStroke.Parent = togBtn
-
-	local togIcon = Instance.new("ImageLabel")
-	togIcon.Name = "Chevron"
-	togIcon.AnchorPoint = Vector2.new(0.5, 0.5)
-	togIcon.Position = UDim2.new(0.5, 0, 0.5, 0)
-	togIcon.Size = UDim2.new(0, 12, 0, 12)
-	togIcon.BackgroundTransparency = 1
-	togIcon.Image = LucianUI.Icons.Chevron
-	togIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
-	togIcon.Rotation = 0
-	togIcon.ZIndex = 16
-	togIcon.Parent = togBtn
-	self.TogIcon = togIcon
-
-	-- Nav List (.u040-nav) as a ScrollingFrame so 9+ tabs scroll smoothly
-	local navList = Instance.new("ScrollingFrame")
-	navList.Name = "NavList"
-	navList.Position = UDim2.new(0, 8, 0, 50)
-	navList.Size = UDim2.new(1, -16, 1, -102)
-	navList.BackgroundTransparency = 1
-	navList.BorderSizePixel = 0
-	navList.ScrollBarThickness = 0
-	navList.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	navList.CanvasSize = UDim2.new(0, 0, 0, 0)
-	navList.ClipsDescendants = true
-	navList.ZIndex = 11
-	navList.Parent = rail
-	self.NavList = navList
-
-	local navPadding = Instance.new("UIPadding")
-	navPadding.PaddingTop = UDim.new(0, 2)
-	navPadding.PaddingBottom = UDim.new(0, 4)
-	navPadding.Parent = navList
-
-	-- Active Item Highlight Pill (.u040-hl)
-	local activeHl = Instance.new("Frame")
-	activeHl.Name = "ActiveHighlight"
-	activeHl.Position = UDim2.new(0, 0, 0, 0)
-	activeHl.Size = UDim2.new(1, 0, 0, 38)
-	activeHl.BackgroundColor3 = Color3.fromRGB(244, 242, 238)
-	activeHl.BackgroundTransparency = 0.86
-	activeHl.BorderSizePixel = 0
-	activeHl.ZIndex = 12
-	activeHl.Parent = navList
-	self.ActiveHl = activeHl
-
-	local hlCorner = Instance.new("UICorner")
-	hlCorner.CornerRadius = UDim.new(0, 12)
-	hlCorner.Parent = activeHl
-
-	-- Left Active Gradient Stripe
-	local hlStripe = Instance.new("Frame")
-	hlStripe.Name = "GradientStripe"
-	hlStripe.AnchorPoint = Vector2.new(0, 0.5)
-	hlStripe.Position = UDim2.new(0, 2, 0.5, 0)
-	hlStripe.Size = UDim2.new(0, 3, 0, 20)
-	hlStripe.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	hlStripe.BorderSizePixel = 0
-	hlStripe.ZIndex = 13
-	hlStripe.Parent = activeHl
-
-	local sCorner = Instance.new("UICorner")
-	sCorner.CornerRadius = UDim.new(1, 0)
-	sCorner.Parent = hlStripe
-
-	local sGrad = Instance.new("UIGradient")
-	sGrad.Color = self.Theme.Gradient
-	sGrad.Rotation = 90
-	sGrad.Parent = hlStripe
-
-	-- Bottom User Profile Card (.u040-me)
-	local meCard = Instance.new("Frame")
-	meCard.Name = "ProfileCard"
-	meCard.Position = UDim2.new(0, 8, 1, -48)
-	meCard.Size = UDim2.new(1, -16, 0, 40)
-	meCard.BackgroundColor3 = Color3.fromRGB(244, 242, 238)
-	meCard.BackgroundTransparency = 0.93
-	meCard.BorderSizePixel = 0
-	meCard.ZIndex = 11
-	meCard.Parent = rail
-	self.MeCard = meCard
-
-	local meCorner = Instance.new("UICorner")
-	meCorner.CornerRadius = UDim.new(0, 12)
-	meCorner.Parent = meCard
-
-	local avatar = Instance.new("Frame")
-	avatar.Name = "Avatar"
-	avatar.AnchorPoint = Vector2.new(0, 0.5)
-	avatar.Position = UDim2.new(0, 7, 0.5, 0)
-	avatar.Size = UDim2.new(0, 26, 0, 26)
-	avatar.BackgroundTransparency = 1
-	avatar.BorderSizePixel = 0
-	avatar.ZIndex = 12
-	avatar.Parent = meCard
-
-	local avCorner = Instance.new("UICorner")
-	avCorner.CornerRadius = UDim.new(1, 0)
-	avCorner.Parent = avatar
-
-	local avGrad = Instance.new("UIGradient")
-	avGrad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 211, 168)),
-		ColorSequenceKeypoint.new(0.6, Color3.fromRGB(255, 122, 147)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(139, 108, 255))
-	})
-	avGrad.Rotation = 45
-	avGrad.Parent = avatar
-
-	local avImg = Instance.new("ImageLabel")
-	avImg.Name = "AvatarImage"
-	avImg.AnchorPoint = Vector2.new(0.5, 0.5)
-	avImg.Position = UDim2.new(0.5, 0, 0.5, 0)
-	avImg.Size = UDim2.new(1, 0, 1, 0)
-	avImg.BackgroundTransparency = 1
-	avImg.ZIndex = 13
-	avImg.Visible = false
-	avImg.Parent = avatar
-	self.AvatarImage = avImg
-
-	local avImgCorner = Instance.new("UICorner")
-	avImgCorner.CornerRadius = UDim.new(1, 0)
-	avImgCorner.Parent = avImg
-
-	if config.UserAvatar and config.UserAvatar ~= "" then
-		avImg.Image = config.UserAvatar
-		avImg.Visible = true
-	else
-		drawNexusMonogram(avatar, 30)
-		task.spawn(function()
-			local p = Players.LocalPlayer
-			if p and p.UserId > 0 then
-				local ok, url = pcall(function()
-					return Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
-				end)
-				if ok and url and avImg.Parent then
-					avImg.Image = url
-					avImg.Visible = true
-				end
-			end
-		end)
-	end
-
-	local meName = Instance.new("TextLabel")
-	meName.Name = "UserName"
-	meName.Position = UDim2.new(0, 40, 0, 6)
-	meName.Size = UDim2.new(0, 95, 0, 14)
-	meName.BackgroundTransparency = 1
-	meName.Text = config.UserName or "Ngmankhoi"
-	meName.TextColor3 = Color3.fromRGB(244, 240, 232)
-	meName.Font = getUIFont("Bold")
-	meName.TextSize = 12
-	meName.TextXAlignment = Enum.TextXAlignment.Left
-	meName.TextTransparency = 1
-	meName.ZIndex = 12
-	meName.Parent = meCard
-	self.MeName = meName
-
-	local meRole = Instance.new("TextLabel")
-	meRole.Name = "UserRole"
-	meRole.Position = UDim2.new(0, 40, 0, 20)
-	meRole.Size = UDim2.new(0, 95, 0, 12)
-	meRole.BackgroundTransparency = 1
-	meRole.Text = config.UserRole or "Lead Developer"
-	meRole.TextColor3 = Color3.fromRGB(140, 138, 150)
-	meRole.Font = getUIFont("Medium")
-	meRole.TextSize = 10
-	meRole.TextXAlignment = Enum.TextXAlignment.Left
-	meRole.TextTransparency = 1
-	meRole.ZIndex = 12
-	meRole.Parent = meCard
-	self.MeRole = meRole
-
-	-- Right Main Content Card (.u040-main)
-	local mainCard = Instance.new("Frame")
-	mainCard.Name = "MainContent"
-	mainCard.Position = UDim2.new(0, 64, 0, 0)
-	mainCard.Size = UDim2.new(1, -64, 1, 0)
-	mainCard.BackgroundColor3 = self.Theme.Surface
-	mainCard.BorderSizePixel = 0
-	mainCard.ClipsDescendants = false
-	mainCard.ZIndex = 10
-	mainCard.Parent = container
-	self.MainCard = mainCard
-
-	makeDraggable(container, mainCard)
-
-	local mCorner = Instance.new("UICorner")
-	mCorner.CornerRadius = UDim.new(0, 20)
-	mCorner.Parent = mainCard
-
-	local mStroke = Instance.new("UIStroke")
-	mStroke.Color = self.Theme.Line
-	mStroke.Transparency = self.Theme.LineTransparency
-	mStroke.Thickness = 1
-	mStroke.Parent = mainCard
-
-	local mShadow = Instance.new("ImageLabel")
-	mShadow.Name = "MainShadow"
-	mShadow.AnchorPoint = Vector2.new(0.5, 0.5)
-	mShadow.Position = UDim2.new(0.5, 0, 0.5, 6)
-	mShadow.Size = UDim2.new(1, 20, 1, 20)
-	mShadow.BackgroundTransparency = 1
-	mShadow.Image = "rbxassetid://1316045217"
-	mShadow.ImageColor3 = self.Theme.Shadow
-	mShadow.ImageTransparency = 0.85
-	mShadow.ScaleType = Enum.ScaleType.Slice
-	mShadow.SliceCenter = Rect.new(10, 10, 118, 118)
-	mShadow.ZIndex = 9
-	mShadow.Parent = mainCard
-
-	-- Main Header Labels
-	local subtitleText = config.Subtitle or config.SubTitle or "HEAVYWEIGHT FISHING"
-	local smallLabel = Instance.new("TextLabel")
-	smallLabel.Name = "SubTitle"
-	smallLabel.Position = UDim2.new(0, 18, 0, 12)
-	smallLabel.Size = UDim2.new(1, -36, 0, 12)
-	smallLabel.BackgroundTransparency = 1
-	smallLabel.Text = subtitleText
-	smallLabel.TextColor3 = self.Theme.Ink3
-	smallLabel.Font = getUIFont("Bold")
-	smallLabel.TextSize = 10
-	smallLabel.TextXAlignment = Enum.TextXAlignment.Left
-	smallLabel.ZIndex = 11
-	smallLabel.Parent = mainCard
-	self.SubTitleLabel = smallLabel
-
-	local h3Title = Instance.new("TextLabel")
-	h3Title.Name = "PageTitle"
-	h3Title.Position = UDim2.new(0, 18, 0, 24)
-	h3Title.Size = UDim2.new(1, -36, 0, 22)
-	h3Title.BackgroundTransparency = 1
-	h3Title.Text = "Home"
-	h3Title.TextColor3 = self.Theme.Ink
-	h3Title.Font = getUIFont("Bold")
-	h3Title.TextSize = 18
-	h3Title.TextXAlignment = Enum.TextXAlignment.Left
-	h3Title.ZIndex = 11
-	h3Title.Parent = mainCard
-	self.H3Title = h3Title
-
-	-- Content Area (Pages container)
-	local pages = Instance.new("Frame")
-	pages.Name = "PagesArea"
-	pages.Position = UDim2.new(0, 0, 0, 50)
-	pages.Size = UDim2.new(1, 0, 1, -52)
-	pages.BackgroundTransparency = 1
-	pages.ClipsDescendants = true
-	pages.ZIndex = 11
-	pages.Parent = mainCard
-	self.PagesArea = pages
-
-	-- Toggle Expand / Collapse Action
-	local function toggleWide()
-		self.IsWide = not self.IsWide
-		local targetRailWidth = self.IsWide and 150 or 56
-		local rot = self.IsWide and 180 or 0
-		local alpha = self.IsWide and 0 or 1
-
-		TweenService:Create(rail, SPRING_BOUNCE, { Size = UDim2.new(0, targetRailWidth, 1, 0) }):Play()
-		TweenService:Create(mainCard, SPRING_BOUNCE, {
-			Position = UDim2.new(0, targetRailWidth + 8, 0, 0),
-			Size = UDim2.new(1, -(targetRailWidth + 8), 1, 0)
-		}):Play()
-		TweenService:Create(togIcon, SPRING_BOUNCE, { Rotation = rot }):Play()
-		TweenService:Create(brandName, FAST_EASE, { TextTransparency = alpha }):Play()
-		TweenService:Create(meName, FAST_EASE, { TextTransparency = alpha }):Play()
-		TweenService:Create(meRole, FAST_EASE, { TextTransparency = alpha }):Play()
-
-		for _, item in ipairs(self.RailItems) do
-			TweenService:Create(item.Label, FAST_EASE, { TextTransparency = alpha }):Play()
-			if item.Badge then
-				local targetBadgeX = self.IsWide and 120 or 32
-				TweenService:Create(item.Badge, SPRING_BOUNCE, { Position = UDim2.new(0, targetBadgeX, 0, 12) }):Play()
-			end
-		end
-	end
-
-	togBtn.MouseButton1Click:Connect(toggleWide)
-	return self
+--------------------------------------------------------------------------
+-- INK SWIRL INTRO
+-- Two tapered ink strokes spiral in, orbit as a ring, shrink to two dots;
+-- left dot shoots up into the Dynamic Island at T_PILL, right dot expands
+-- into the main window at T_WINDOW. Click anywhere to skip.
+--------------------------------------------------------------------------
+function NexusLib:PlayInkIntro(callbackOrOpts)
+    local onPill, onWindow
+    if type(callbackOrOpts) == "table" then
+        onPill = callbackOrOpts.OnPill
+        onWindow = callbackOrOpts.OnWindow or callbackOrOpts.Callback
+    else
+        onWindow = callbackOrOpts
+    end
+
+    local TAU = math.pi * 2
+    local K = TAU * 0.9
+    local S0 = 0.2
+    local PHI0 = { -0.75 * math.pi, 0.25 * math.pi }
+    local S_END = (1.75 * math.pi + TAU) / K
+    local POINTS = 26
+    local RING = 46
+
+    local T_SPIN = 2.15
+    local T_GROW = T_SPIN + 0.35
+    local T_PILL = T_GROW + 0.45
+    local T_SQUARE = T_GROW + 0.25
+    local T_WINDOW = T_SQUARE + 0.7
+    local T_END = T_WINDOW + 0.45
+
+    local function clamp01(x) return math.clamp(x, 0, 1) end
+    local function lerp(a, b, t) return a + (b - a) * t end
+    local function easeOutCubic(x) return 1 - (1 - x) ^ 3 end
+    local function easeOutQuart(x) return 1 - (1 - x) ^ 4 end
+    local function easeInOutCubic(x)
+        if x < 0.5 then return 4 * x * x * x end
+        return 1 - (-2 * x + 2) ^ 3 / 2
+    end
+    local function smooth(a, b, x)
+        local t = clamp01((x - a) / (b - a))
+        return t * t * (3 - 2 * t)
+    end
+
+    local INK = Color3.fromRGB(245, 245, 245)
+    local ISLAND_BG = Theme.Surface
+    local SQUARE_BG = Color3.fromRGB(32, 32, 36)
+    local WINDOW_BG = Theme.Surface
+
+    DestroyExisting("Nexus_InkIntro")
+    local IntroGui = Instance.new("ScreenGui")
+    IntroGui.Name = "Nexus_InkIntro"
+    IntroGui.DisplayOrder = 999999
+    IntroGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    IntroGui.ResetOnSpawn = false
+    IntroGui.IgnoreGuiInset = true
+    IntroGui.Parent = GetSafeGui()
+
+    local Blur = Instance.new("BlurEffect")
+    Blur.Size = 0
+    pcall(function()
+        Blur.Parent = Lighting
+    end)
+    Tween(Blur, 0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Size = 16 })
+
+    local Dim = Instance.new("TextButton")
+    Dim.Size = UDim2.new(1, 0, 1, 0)
+    Dim.BackgroundColor3 = Color3.fromRGB(8, 8, 9)
+    Dim.BackgroundTransparency = 0.25
+    Dim.BorderSizePixel = 0
+    Dim.Text = ""
+    Dim.AutoButtonColor = false
+    Dim.Parent = IntroGui
+
+    local camera = workspace.CurrentCamera
+    local vp = (camera and camera.ViewportSize and camera.ViewportSize.X > 100) and camera.ViewportSize or Vector2.new(1280, 720)
+    local cx, cy = vp.X / 2, vp.Y * 0.46
+    local R0 = math.max(vp.X, vp.Y) * 0.6
+    local winSize = NexusLib.DefaultWindowSize
+    local win = { cx = vp.X / 2, cy = 66 + winSize.Y / 2, w = winSize.X, h = winSize.Y }
+    local isl = { cx = vp.X / 2, cy = 14 + 20, w = 340, h = 40 }
+
+    local segs = { {}, {} }
+    for i = 1, 2 do
+        for k = 1, POINTS - 1 do
+            local f = Instance.new("Frame")
+            f.AnchorPoint = Vector2.new(0.5, 0.5)
+            f.BackgroundColor3 = INK
+            f.BorderSizePixel = 0
+            f.Visible = false
+            f.Parent = IntroGui
+            local c = Instance.new("UICorner")
+            c.CornerRadius = UDim.new(0.5, 0)
+            c.Parent = f
+            segs[i][k] = f
+        end
+    end
+
+    local function makeBlob()
+        local f = Instance.new("Frame")
+        f.AnchorPoint = Vector2.new(0.5, 0.5)
+        f.BorderSizePixel = 0
+        f.Visible = false
+        f.Parent = IntroGui
+        local c = Instance.new("UICorner")
+        c.Name = "Corner"
+        c.Parent = f
+        local s = Instance.new("UIStroke")
+        s.Name = "Rim"
+        s.Thickness = 1
+        s.Color = Color3.fromRGB(255, 255, 255)
+        s.Transparency = 1
+        s.Parent = f
+        return f
+    end
+    local BlobL, BlobR = makeBlob(), makeBlob()
+
+    local function place(f, x, y, w, h, radius, color, alpha, rim)
+        f.Visible = true
+        f.Position = UDim2.fromOffset(x, y)
+        f.Size = UDim2.fromOffset(w, h)
+        f.BackgroundColor3 = color
+        f.BackgroundTransparency = alpha or 0
+        f.Corner.CornerRadius = UDim.new(0, radius)
+        f.Rim.Transparency = 1 - (rim or 0)
+    end
+
+    local function spiralPoint(i, s, ringR)
+        local r = ringR
+        if s < 1 then
+            r = lerp(R0, ringR, easeOutCubic(clamp01(s)))
+        end
+        local phi = PHI0[i] + K * s
+        return Vector2.new(cx + math.cos(phi) * r, cy + math.sin(phi) * r)
+    end
+
+    local function drawStroke(i, head, tail, maxW, ringR)
+        local prev
+        for k = 0, POINTS - 1 do
+            local u = k / (POINTS - 1)
+            local p = spiralPoint(i, tail + (head - tail) * u, ringR)
+            if prev then
+                local uMid = (k - 0.5) / (POINTS - 1)
+                local w = maxW * math.sin(math.pi * uMid) ^ 0.65 + 0.8
+                local d = p - prev
+                local mid = (p + prev) / 2
+                local f = segs[i][k]
+                f.Visible = true
+                f.Position = UDim2.fromOffset(mid.X, mid.Y)
+                f.Size = UDim2.fromOffset(d.Magnitude + w * 0.5, w)
+                f.Rotation = math.deg(math.atan2(d.Y, d.X))
+            end
+            prev = p
+        end
+    end
+
+    local function hideStrokes()
+        for i = 1, 2 do
+            for _, f in ipairs(segs[i]) do
+                f.Visible = false
+            end
+        end
+    end
+
+    local conn
+    local finished = false
+    local firedPill = false
+    local firedWindow = false
+
+    local function firePill()
+        if firedPill then return end
+        firedPill = true
+        if onPill then task.spawn(onPill) end
+    end
+
+    local function fireWindow()
+        if firedWindow then return end
+        firedWindow = true
+        firePill()
+        if onWindow then task.spawn(onWindow) end
+    end
+
+    local function Finish()
+        if finished then return end
+        finished = true
+        if conn then conn:Disconnect() end
+        fireWindow()
+        Tween(Blur, 0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Size = 0 })
+        IntroGui:Destroy()
+        task.delay(0.4, function()
+            pcall(function() Blur:Destroy() end)
+        end)
+    end
+
+    Dim.MouseButton1Click:Connect(Finish)
+    TrackCleanup(Finish)
+
+    local t0 = os.clock()
+    conn = TrackConn(RunService.RenderStepped:Connect(function()
+        local t = os.clock() - t0
+
+        if t < T_SPIN then
+            local head = lerp(S0, S_END, easeOutQuart(t / T_SPIN))
+            local len = lerp(0.2, 0.5, smooth(0.15, 1.0, t)) * lerp(1, 0.07, smooth(1.5, T_SPIN, t))
+            local tail = math.max(0, head - len)
+            local maxW = lerp(6, 9, smooth(1.4, T_SPIN, t))
+            local ringR = lerp(RING, 16, easeInOutCubic(smooth(1.3, T_SPIN, t)))
+            for i = 1, 2 do
+                drawStroke(i, head, tail, maxW, ringR)
+            end
+        else
+            hideStrokes()
+
+            local d = lerp(9, 18, easeOutCubic(clamp01((t - T_SPIN) / (T_GROW - T_SPIN))))
+            local gap = 16
+
+            local p = clamp01((t - T_GROW) / (T_PILL - T_GROW))
+            if p <= 0 then
+                place(BlobL, cx - gap, cy, d, d, d / 2, INK)
+            else
+                local e = easeInOutCubic(p)
+                local h = p < 0.5 and lerp(18, 44, p / 0.5) or lerp(44, isl.h, (p - 0.5) / 0.5)
+                local w = p < 0.5 and lerp(18, 12, p / 0.5) or lerp(12, isl.w, easeOutCubic((p - 0.5) / 0.5))
+                local tone = smooth(0.55, 1, p)
+                place(BlobL, lerp(cx - gap, isl.cx, e), lerp(cy, isl.cy, e), w, h,
+                    math.min(w, h) / 2, INK:Lerp(ISLAND_BG, tone), 0, 0.10 * tone)
+            end
+
+            local q = clamp01((t - T_GROW) / (T_SQUARE - T_GROW))
+            local x2 = clamp01((t - T_SQUARE) / (T_WINDOW - T_SQUARE))
+            if x2 <= 0 then
+                local sq = easeOutCubic(q)
+                place(BlobR, cx + gap, cy, lerp(d, 34, sq), lerp(d, 28, sq), lerp(d / 2, 8, sq),
+                    INK:Lerp(SQUARE_BG, sq))
+            else
+                local e = easeInOutCubic(x2)
+                place(BlobR, lerp(cx + gap, win.cx, e), lerp(cy, win.cy, e), lerp(34, win.w, e),
+                    lerp(28, win.h, e), lerp(8, 14, e), SQUARE_BG:Lerp(WINDOW_BG, e), 0, 0.08 * e)
+            end
+        end
+
+        if t >= T_PILL then
+            firePill()
+        end
+
+        Dim.BackgroundTransparency = lerp(0.25, 1, smooth(T_SQUARE, T_WINDOW + 0.2, t))
+
+        if t >= T_WINDOW then
+            fireWindow()
+            local f = clamp01((t - T_WINDOW) / (T_END - T_WINDOW))
+            BlobL.BackgroundTransparency = f
+            BlobR.BackgroundTransparency = f
+            BlobL.Rim.Transparency = 1
+            BlobR.Rim.Transparency = 1
+        end
+        if t >= T_END then
+            Finish()
+        end
+    end))
 end
 
--- ==============================================================================
--- TAB BUILDER & COMPONENT IMPLEMENTATION (100% NexusLib & Lucian Compatible)
--- ==============================================================================
-function Element040:CreateTab(nameOrConfig: any)
-	local tabTitle: string
-	local tabIcon: string
-	local tabBadge: number?
-
-	if type(nameOrConfig) == "table" then
-		tabTitle = tostring(nameOrConfig.Title or nameOrConfig.Name or "Tab")
-		tabBadge = nameOrConfig.Badge
-		if nameOrConfig.Icon and nameOrConfig.Icon ~= "" then
-			tabIcon = nameOrConfig.Icon
-		end
-	else
-		tabTitle = tostring(nameOrConfig or "Tab")
-		tabBadge = nil
-	end
-
-	if not tabIcon or tabIcon == "" then
-		local lower = string.lower(tabTitle)
-		for key, iconId in pairs(TAB_ICON_MAP) do
-			if string.find(lower, key, 1, true) then
-				tabIcon = iconId
-				break
-			end
-		end
-		tabIcon = tabIcon or LucianUI.Icons.Grid
-	end
-
-	local index = #self.Tabs + 1
-	local tab = {
-		Index = index,
-		Title = tabTitle,
-		Icon = tabIcon,
-		Badge = tabBadge,
-		Window = self
-	}
-
-	-- Page Scrolling Container
-	local page = Instance.new("ScrollingFrame")
-	page.Name = "Page_" .. tabTitle
-	page.Size = UDim2.new(1, 0, 1, 0)
-	page.BackgroundTransparency = 1
-	page.BorderSizePixel = 0
-	page.ScrollBarThickness = 2
-	page.ScrollBarImageColor3 = self.Theme.Ink3
-	page.ScrollBarImageTransparency = 0.6
-	page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	page.CanvasSize = UDim2.new(0, 0, 0, 0)
-	page.Visible = (index == 1)
-	page.ZIndex = 12
-	page.Parent = self.PagesArea
-	tab.Page = page
-
-	local pPadding = Instance.new("UIPadding")
-	pPadding.PaddingTop = UDim.new(0, 4)
-	pPadding.PaddingBottom = UDim.new(0, 12)
-	pPadding.PaddingLeft = UDim.new(0, 14)
-	pPadding.PaddingRight = UDim.new(0, 14)
-	pPadding.Parent = page
-
-	local pLayout = Instance.new("UIListLayout")
-	pLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	pLayout.Padding = UDim.new(0, 7)
-	pLayout.Parent = page
-
-	-- Rail Item (.u040-it)
-	local itBtn = Instance.new("TextButton")
-	itBtn.Name = "Item_" .. index
-	itBtn.Position = UDim2.new(0, 0, 0, (index - 1) * 40)
-	itBtn.Size = UDim2.new(1, 0, 0, 38)
-	itBtn.BackgroundTransparency = 1
-	itBtn.Text = ""
-	itBtn.AutoButtonColor = false
-	itBtn.ZIndex = 14
-	itBtn.Parent = self.NavList
-
-	local itIcon = Instance.new("ImageLabel")
-	itIcon.Name = "Icon"
-	itIcon.AnchorPoint = Vector2.new(0.5, 0.5)
-	itIcon.Position = UDim2.new(0, 20, 0.5, 0)
-	itIcon.Size = UDim2.new(0, 18, 0, 18)
-	itIcon.BackgroundTransparency = 1
-	itIcon.Image = tabIcon
-	itIcon.ImageColor3 = (index == 1) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(140, 138, 150)
-	itIcon.ZIndex = 15
-	itIcon.Parent = itBtn
-
-	local itLabel = Instance.new("TextLabel")
-	itLabel.Name = "Label"
-	itLabel.Position = UDim2.new(0, 44, 0, 0)
-	itLabel.Size = UDim2.new(1, -50, 1, 0)
-	itLabel.BackgroundTransparency = 1
-	itLabel.Text = tabTitle
-	itLabel.TextColor3 = Color3.fromRGB(244, 240, 232)
-	itLabel.Font = getUIFont("Bold")
-	itLabel.TextSize = 12
-	itLabel.TextXAlignment = Enum.TextXAlignment.Left
-	itLabel.TextTransparency = self.IsWide and 0 or 1
-	itLabel.ZIndex = 15
-	itLabel.Parent = itBtn
-
-	local itBadge
-	if tabBadge and tabBadge > 0 then
-		itBadge = Instance.new("Frame")
-		itBadge.Name = "Badge"
-		itBadge.AnchorPoint = Vector2.new(0, 0.5)
-		itBadge.Position = UDim2.new(0, self.IsWide and 120 or 32, 0, 12)
-		itBadge.Size = UDim2.new(0, 14, 0, 14)
-		itBadge.BackgroundColor3 = self.Theme.Danger
-		itBadge.BorderSizePixel = 0
-		itBadge.ZIndex = 16
-		itBadge.Parent = itBtn
-
-		local bCorn = Instance.new("UICorner")
-		bCorn.CornerRadius = UDim.new(1, 0)
-		bCorn.Parent = itBadge
-
-		local bStrk = Instance.new("UIStroke")
-		bStrk.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		bStrk.Color = self.Theme.Ink
-		bStrk.Thickness = 2
-		bStrk.Parent = itBadge
-
-		local bText = Instance.new("TextLabel")
-		bText.Size = UDim2.new(1, 0, 1, 0)
-		bText.BackgroundTransparency = 1
-		bText.Text = tostring(tabBadge)
-		bText.TextColor3 = Color3.fromRGB(255, 255, 255)
-		bText.TextSize = 9
-		bText.Font = getUIFont("Bold")
-		bText.ZIndex = 17
-		bText.Parent = itBadge
-	end
-
-	table.insert(self.RailItems, {
-		Button = itBtn,
-		Icon = itIcon,
-		Label = itLabel,
-		Badge = itBadge
-	})
-
-	itBtn.MouseButton1Click:Connect(function()
-		self:SelectTab(index)
-	end)
-
-	-- ==============================================================================
-	-- COMPONENT BUILDERS (Supports both Tab and Section calling conventions)
-	-- ==============================================================================
-
-	-- Header Banner
-	function tab:CreateHeader(config: { Title: string, Subtitle: string? })
-		config = config or {}
-		local headerFrame = Instance.new("Frame")
-		headerFrame.Name = "Header"
-		headerFrame.Size = UDim2.new(1, 0, 0, 42)
-		headerFrame.BackgroundTransparency = 1
-		headerFrame.Parent = page
-
-		local hTitle = Instance.new("TextLabel")
-		hTitle.Position = UDim2.new(0, 2, 0, 2)
-		hTitle.Size = UDim2.new(1, -4, 0, 20)
-		hTitle.BackgroundTransparency = 1
-		hTitle.Text = config.Title or "Overview"
-		hTitle.TextColor3 = self.Window.Theme.Ink
-		hTitle.Font = getUIFont("Bold")
-		hTitle.TextSize = 15
-		hTitle.TextXAlignment = Enum.TextXAlignment.Left
-		hTitle.Parent = headerFrame
-
-		local hSub = Instance.new("TextLabel")
-		hSub.Position = UDim2.new(0, 2, 0, 22)
-		hSub.Size = UDim2.new(1, -4, 0, 16)
-		hSub.BackgroundTransparency = 1
-		hSub.Text = config.Subtitle or ""
-		hSub.TextColor3 = self.Window.Theme.Ink3
-		hSub.Font = getUIFont("Medium")
-		hSub.TextSize = 11
-		hSub.TextXAlignment = Enum.TextXAlignment.Left
-		hSub.Parent = headerFrame
-
-		return { _frame = headerFrame }
-	end
-
-	-- Stat Row: Creates Stat_1, Stat_2, Stat_3 with TextLabel (size >= 18) for live update compatibility
-	function tab:CreateStatRow(stats: { { Title: string, Value: any, Color: Color3? } })
-		stats = stats or {}
-		local rowFrame = Instance.new("Frame")
-		rowFrame.Name = "Stats"
-		rowFrame.Size = UDim2.new(1, 0, 0, 70)
-		rowFrame.BackgroundTransparency = 1
-		rowFrame.Parent = page
-
-		local layout = Instance.new("UIListLayout")
-		layout.FillDirection = Enum.FillDirection.Horizontal
-		layout.SortOrder = Enum.SortOrder.LayoutOrder
-		layout.Padding = UDim.new(0, 8)
-		layout.Parent = rowFrame
-
-		local count = math.max(#stats, 1)
-		for i, stat in ipairs(stats) do
-			local statOuter = Instance.new("Frame")
-			statOuter.Name = "Stat_" .. i
-			statOuter.LayoutOrder = i
-			statOuter.Size = UDim2.new(1 / count, -(8 * (count - 1) / count), 1, 0)
-			statOuter.BackgroundColor3 = self.Window.Theme.Surface2
-			statOuter.BorderSizePixel = 0
-			statOuter.Parent = rowFrame
-
-			local corner = Instance.new("UICorner")
-			corner.CornerRadius = UDim.new(0, 12)
-			corner.Parent = statOuter
-
-			local stroke = Instance.new("UIStroke")
-			stroke.Color = self.Window.Theme.Line
-			stroke.Transparency = self.Window.Theme.LineTransparency
-			stroke.Thickness = 1
-			stroke.Parent = statOuter
-
-			local accent = Instance.new("Frame")
-			accent.Name = "Accent"
-			accent.Position = UDim2.new(0, 10, 0, 10)
-			accent.Size = UDim2.new(0, 16, 0, 3)
-			accent.BackgroundColor3 = stat.Color or self.Window.Theme.Accent
-			accent.BorderSizePixel = 0
-			accent.Parent = statOuter
-
-			local aCorner = Instance.new("UICorner")
-			aCorner.CornerRadius = UDim.new(1, 0)
-			aCorner.Parent = accent
-
-			local valLabel = Instance.new("TextLabel")
-			valLabel.Name = "ValueLabel"
-			valLabel.Position = UDim2.new(0, 10, 0, 16)
-			valLabel.Size = UDim2.new(1, -12, 0, 24)
-			valLabel.BackgroundTransparency = 1
-			valLabel.Text = (stat.Value ~= nil and stat.Value ~= "") and tostring(stat.Value) or "-"
-			valLabel.TextColor3 = self.Window.Theme.Ink
-			valLabel.Font = getUIFont("Bold")
-			valLabel.TextSize = 18
-			valLabel.TextXAlignment = Enum.TextXAlignment.Left
-			valLabel.TextTruncate = Enum.TextTruncate.AtEnd
-			valLabel.TextWrapped = false
-			valLabel.Parent = statOuter
-
-			-- Guard against empty string polling (e.g. unequipped bait returning "")
-			valLabel:GetPropertyChangedSignal("Text"):Connect(function()
-				if valLabel.Text == "" or valLabel.Text == " " then
-					valLabel.Text = "None"
-				end
-			end)
-
-			local titleLabel = Instance.new("TextLabel")
-			titleLabel.Name = "TitleLabel"
-			titleLabel.Position = UDim2.new(0, 10, 0, 44)
-			titleLabel.Size = UDim2.new(1, -12, 0, 16)
-			titleLabel.BackgroundTransparency = 1
-			titleLabel.Text = tostring(stat.Title or "STAT")
-			titleLabel.TextColor3 = self.Window.Theme.Ink3
-			titleLabel.Font = getUIFont("Bold")
-			titleLabel.TextSize = 11
-			titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-			titleLabel.TextTruncate = Enum.TextTruncate.None
-			titleLabel.TextWrapped = false
-			titleLabel.Parent = statOuter
-		end
-
-		return { _frame = rowFrame }
-	end
-
-	-- Featured Card (Discord / Announcement / Info card)
-	function tab:CreateFeaturedCard(config: { Tag: string?, Title: string?, Description: string?, ButtonText: string?, Callback: (() -> ())? })
-		config = config or {}
-		local card = Instance.new("Frame")
-		card.Name = "FeaturedCard"
-		card.Size = UDim2.new(1, 0, 0, 100)
-		card.BackgroundColor3 = self.Window.Theme.Surface2
-		card.BorderSizePixel = 0
-		card.Parent = page
-
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 14)
-		corner.Parent = card
-
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = self.Window.Theme.Line
-		stroke.Transparency = self.Window.Theme.LineTransparency
-		stroke.Thickness = 1
-		stroke.Parent = card
-
-		local tagPill = Instance.new("Frame")
-		tagPill.Name = "TagPill"
-		tagPill.Position = UDim2.new(0, 14, 0, 10)
-		tagPill.Size = UDim2.new(0, 0, 0, 18)
-		tagPill.AutomaticSize = Enum.AutomaticSize.X
-		tagPill.BackgroundColor3 = self.Window.Theme.Surface3
-		tagPill.BorderSizePixel = 0
-		tagPill.Parent = card
-
-		local tpCorner = Instance.new("UICorner")
-		tpCorner.CornerRadius = UDim.new(1, 0)
-		tpCorner.Parent = tagPill
-
-		local tagLabel = Instance.new("TextLabel")
-		tagLabel.Size = UDim2.new(1, 0, 1, 0)
-		tagLabel.AutomaticSize = Enum.AutomaticSize.X
-		tagLabel.BackgroundTransparency = 1
-		tagLabel.Text = "  " .. string.upper(config.Tag or "NEXUS") .. "  "
-		tagLabel.TextColor3 = self.Window.Theme.Accent
-		tagLabel.Font = getUIFont("Bold")
-		tagLabel.TextSize = 9
-		tagLabel.Parent = tagPill
-
-		local titleLabel = Instance.new("TextLabel")
-		titleLabel.Name = "CardTitle"
-		titleLabel.Position = UDim2.new(0, 14, 0, 32)
-		titleLabel.Size = UDim2.new(1, -120, 0, 18)
-		titleLabel.BackgroundTransparency = 1
-		titleLabel.Text = config.Title or "Featured"
-		titleLabel.TextColor3 = self.Window.Theme.Ink
-		titleLabel.Font = getUIFont("Bold")
-		titleLabel.TextSize = 14
-		titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-		titleLabel.Parent = card
-
-		local descLabel = Instance.new("TextLabel")
-		descLabel.Name = "CardDesc"
-		descLabel.Position = UDim2.new(0, 14, 0, 52)
-		descLabel.Size = UDim2.new(1, -120, 0, 38)
-		descLabel.BackgroundTransparency = 1
-		descLabel.Text = config.Description or ""
-		descLabel.TextColor3 = self.Window.Theme.Ink2
-		descLabel.Font = getUIFont("Medium")
-		descLabel.TextSize = 10
-		descLabel.TextWrapped = true
-		descLabel.TextXAlignment = Enum.TextXAlignment.Left
-		descLabel.TextYAlignment = Enum.TextYAlignment.Top
-		descLabel.Parent = card
-
-		local btn = Instance.new("TextButton")
-		btn.Name = "CardButton"
-		btn.AnchorPoint = Vector2.new(1, 0.5)
-		btn.Position = UDim2.new(1, -14, 0.5, 0)
-		btn.Size = UDim2.new(0, 86, 0, 32)
-		btn.BackgroundColor3 = self.Window.Theme.Accent
-		btn.BorderSizePixel = 0
-		btn.Text = config.ButtonText or "OPEN"
-		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		btn.Font = getUIFont("Bold")
-		btn.TextSize = 11
-		btn.AutoButtonColor = true
-		btn.Parent = card
-
-		local bCorner = Instance.new("UICorner")
-		bCorner.CornerRadius = UDim.new(0, 10)
-		bCorner.Parent = btn
-
-		if config.Callback then
-			btn.MouseButton1Click:Connect(function()
-				task.spawn(config.Callback)
-			end)
-		end
-
-		return { _frame = card }
-	end
-
-	-- Action Row & Card Group
-	function tab:CreateActionRow(actions)
-		local results = {}
-		for _, action in ipairs(actions or {}) do
-			table.insert(results, self:CreateButton(action))
-		end
-		return results
-	end
-
-	function tab:CreateCardGroup(cards)
-		local results = {}
-		for _, card in ipairs(cards or {}) do
-			table.insert(results, self:CreateButton({
-				Name = card.Title or card.Name,
-				Callback = card.Callback
-			}))
-		end
-		return results
-	end
-
-	-- Section Header
-	function tab:CreateSection(title: string)
-		local sec = Instance.new("Frame")
-		sec.Name = "Section_" .. tostring(title)
-		sec.Size = UDim2.new(1, 0, 0, 22)
-		sec.BackgroundTransparency = 1
-		sec.Parent = page
-
-		local sLabel = Instance.new("TextLabel")
-		sLabel.Position = UDim2.new(0, 2, 0, 0)
-		sLabel.Size = UDim2.new(1, -4, 1, 0)
-		sLabel.BackgroundTransparency = 1
-		sLabel.Text = string.upper(tostring(title))
-		sLabel.TextColor3 = self.Window.Theme.Ink3
-		sLabel.Font = getUIFont("Bold")
-		sLabel.TextSize = 10
-		sLabel.TextXAlignment = Enum.TextXAlignment.Left
-		sLabel.Parent = sec
-
-		local sectionObj = {
-			_tab = self,
-			_frame = sec,
-			CreateToggle = function(_, cfg) return self:CreateToggle(cfg) end,
-			CreateButton = function(_, cfg) return self:CreateButton(cfg) end,
-			CreateSlider = function(_, cfg) return self:CreateSlider(cfg) end,
-			CreateDropdown = function(_, cfg) return self:CreateDropdown(cfg) end,
-			CreateMultiDropdown = function(_, cfg) return self:CreateMultiDropdown(cfg) end,
-			CreateTextbox = function(_, cfg) return self:CreateTextbox(cfg) end,
-			CreateInput = function(_, cfg) return (self.CreateInput and self:CreateInput(cfg)) or self:CreateTextbox(cfg) end,
-			CreateLabel = function(_, text) return self:CreateLabel(text) end,
-			CreateKeybind = function(_, cfg) return self:CreateKeybind(cfg) end,
-			CreateCardGroup = function(_, cfg) return self:CreateCardGroup(cfg) end,
-			CreateActionRow = function(_, cfg) return self:CreateActionRow(cfg) end,
-			CreateBlock = function(_, cfg) return self:CreateBlock(cfg) end,
-			CreateFeaturedCard = function(_, cfg) return self:CreateFeaturedCard(cfg) end,
-			CreateStatRow = function(_, cfg) return self:CreateStatRow(cfg) end,
-		}
-
-		return setmetatable(sectionObj, {
-			__index = function(t, k)
-				if self[k] ~= nil and type(self[k]) == "function" then
-					return function(_, ...) return self[k](self, ...) end
-				end
-				return rawget(t, k)
-			end,
-		})
-	end
-	tab.Section = tab.CreateSection
-
-	-- Toggle Switch
-	function tab:CreateToggle(tConfig: any)
-		tConfig = tConfig or {}
-		local title = tConfig.Name or tConfig.Title or "Toggle"
-		local state = tConfig.Default == true
-
-		local blk = Instance.new("Frame")
-		blk.Name = "Toggle_" .. title
-		blk.Size = UDim2.new(1, 0, 0, 44)
-		blk.BackgroundColor3 = self.Window.Theme.Surface2
-		blk.BorderSizePixel = 0
-		blk.Parent = page
-
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 12)
-		corner.Parent = blk
-
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = self.Window.Theme.Line
-		stroke.Transparency = self.Window.Theme.LineTransparency
-		stroke.Thickness = 1
-		stroke.Parent = blk
-
-		local tLabel = Instance.new("TextLabel")
-		tLabel.Position = UDim2.new(0, 14, 0, 0)
-		tLabel.Size = UDim2.new(1, -64, 1, 0)
-		tLabel.BackgroundTransparency = 1
-		tLabel.Text = title
-		tLabel.TextColor3 = self.Window.Theme.Ink
-		tLabel.Font = getUIFont("Bold")
-		tLabel.TextSize = 12
-		tLabel.TextXAlignment = Enum.TextXAlignment.Left
-		tLabel.Parent = blk
-
-		local switch = Instance.new("TextButton")
-		switch.AnchorPoint = Vector2.new(1, 0.5)
-		switch.Position = UDim2.new(1, -12, 0.5, 0)
-		switch.Size = UDim2.new(0, 38, 0, 22)
-		switch.BackgroundColor3 = state and self.Window.Theme.Accent or self.Window.Theme.Surface3
-		switch.BorderSizePixel = 0
-		switch.Text = ""
-		switch.AutoButtonColor = false
-		switch.Parent = blk
-
-		local sCorner = Instance.new("UICorner")
-		sCorner.CornerRadius = UDim.new(1, 0)
-		sCorner.Parent = switch
-
-		local knob = Instance.new("Frame")
-		knob.AnchorPoint = Vector2.new(0, 0.5)
-		knob.Position = state and UDim2.new(1, -18, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)
-		knob.Size = UDim2.new(0, 16, 0, 16)
-		knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-		knob.BorderSizePixel = 0
-		knob.Parent = switch
-
-		local kCorner = Instance.new("UICorner")
-		kCorner.CornerRadius = UDim.new(1, 0)
-		kCorner.Parent = knob
-
-		local function set(val, emit)
-			state = val == true
-			local targetPos = state and UDim2.new(1, -18, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)
-			local targetCol = state and self.Window.Theme.Accent or self.Window.Theme.Surface3
-			TweenService:Create(knob, SPRING_BOUNCE, { Position = targetPos }):Play()
-			TweenService:Create(switch, FAST_EASE, { BackgroundColor3 = targetCol }):Play()
-			if emit and tConfig.Callback then
-				task.spawn(tConfig.Callback, state)
-			end
-		end
-
-		switch.MouseButton1Click:Connect(function()
-			set(not state, true)
-		end)
-
-		local handle = {
-			_frame = blk,
-			Get = function()
-				return state
-			end,
-			Set = function(selfOrVal, maybeVal, emit)
-				local v = (maybeVal ~= nil) and maybeVal or selfOrVal
-				set(v == true, emit ~= false)
-			end,
-			SetValue = function(selfOrVal, maybeVal, emit)
-				local v = (maybeVal ~= nil) and maybeVal or selfOrVal
-				set(v == true, emit ~= false)
-			end
-		}
-
-		return handle
-	end
-
-	-- Action Button
-	function tab:CreateButton(btnConfig: any)
-		btnConfig = btnConfig or {}
-		local title = btnConfig.Name or btnConfig.Title or "Button"
-
-		local blk = Instance.new("Frame")
-		blk.Name = "Button_" .. title
-		blk.Size = UDim2.new(1, 0, 0, 44)
-		blk.BackgroundColor3 = self.Window.Theme.Surface2
-		blk.BorderSizePixel = 0
-		blk.Parent = page
-
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 12)
-		corner.Parent = blk
-
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = self.Window.Theme.Line
-		stroke.Transparency = self.Window.Theme.LineTransparency
-		stroke.Thickness = 1
-		stroke.Parent = blk
-
-		local tLabel = Instance.new("TextLabel")
-		tLabel.Position = UDim2.new(0, 14, 0, 0)
-		tLabel.Size = UDim2.new(1, -44, 1, 0)
-		tLabel.BackgroundTransparency = 1
-		tLabel.Text = title
-		tLabel.TextColor3 = self.Window.Theme.Ink
-		tLabel.Font = getUIFont("Bold")
-		tLabel.TextSize = 12
-		tLabel.TextXAlignment = Enum.TextXAlignment.Left
-		tLabel.Parent = blk
-
-		local arr = Instance.new("ImageLabel")
-		arr.AnchorPoint = Vector2.new(1, 0.5)
-		arr.Position = UDim2.new(1, -12, 0.5, 0)
-		arr.Size = UDim2.new(0, 12, 0, 12)
-		arr.BackgroundTransparency = 1
-		arr.Image = LucianUI.Icons.Chevron
-		arr.ImageColor3 = self.Window.Theme.Ink3
-		arr.Rotation = 0
-		arr.Parent = blk
-
-		local hitBtn = Instance.new("TextButton")
-		hitBtn.Size = UDim2.new(1, 0, 1, 0)
-		hitBtn.BackgroundTransparency = 1
-		hitBtn.Text = ""
-		hitBtn.Parent = blk
-
-		hitBtn.MouseButton1Click:Connect(function()
-			TweenService:Create(blk, FAST_EASE, { BackgroundColor3 = self.Window.Theme.Surface3 }):Play()
-			task.delay(0.12, function()
-				if blk.Parent then
-					TweenService:Create(blk, FAST_EASE, { BackgroundColor3 = self.Window.Theme.Surface2 }):Play()
-				end
-			end)
-			if btnConfig.Callback then
-				task.spawn(btnConfig.Callback)
-			end
-		end)
-
-		return { _frame = blk }
-	end
-
-	-- Slider Control
-	function tab:CreateSlider(sConfig: any)
-		sConfig = sConfig or {}
-		local title = sConfig.Name or sConfig.Title or "Slider"
-		local minVal = sConfig.Min or 0
-		local maxVal = sConfig.Max or 100
-		if maxVal < minVal then minVal, maxVal = maxVal, minVal end
-		local range = maxVal - minVal
-		local currentVal = math.clamp(sConfig.Default or minVal, minVal, maxVal)
-		local suffix = sConfig.Suffix or ""
-		local step = tonumber(sConfig.Step or sConfig.Increment)
-
-		local blk = Instance.new("Frame")
-		blk.Name = "Slider_" .. title
-		blk.Size = UDim2.new(1, 0, 0, 48)
-		blk.BackgroundColor3 = self.Window.Theme.Surface2
-		blk.BorderSizePixel = 0
-		blk.Parent = page
-
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 12)
-		corner.Parent = blk
-
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = self.Window.Theme.Line
-		stroke.Transparency = self.Window.Theme.LineTransparency
-		stroke.Thickness = 1
-		stroke.Parent = blk
-
-		local tLabel = Instance.new("TextLabel")
-		tLabel.Position = UDim2.new(0, 14, 0, 6)
-		tLabel.Size = UDim2.new(0.6, -14, 0, 16)
-		tLabel.BackgroundTransparency = 1
-		tLabel.Text = title
-		tLabel.TextColor3 = self.Window.Theme.Ink
-		tLabel.Font = getUIFont("Bold")
-		tLabel.TextSize = 12
-		tLabel.TextXAlignment = Enum.TextXAlignment.Left
-		tLabel.Parent = blk
-
-		local vLabel = Instance.new("TextLabel")
-		vLabel.Position = UDim2.new(0.6, 0, 0, 6)
-		vLabel.Size = UDim2.new(0.4, -14, 0, 16)
-		vLabel.BackgroundTransparency = 1
-		vLabel.Text = tostring(currentVal) .. suffix
-		vLabel.TextColor3 = self.Window.Theme.Accent
-		vLabel.Font = getUIFont("Bold")
-		vLabel.TextSize = 11
-		vLabel.TextXAlignment = Enum.TextXAlignment.Right
-		vLabel.Parent = blk
-
-		local track = Instance.new("Frame")
-		track.Position = UDim2.new(0, 14, 0, 28)
-		track.Size = UDim2.new(1, -28, 0, 6)
-		track.BackgroundColor3 = self.Window.Theme.Surface3
-		track.BorderSizePixel = 0
-		track.Parent = blk
-
-		local trCorn = Instance.new("UICorner")
-		trCorn.CornerRadius = UDim.new(1, 0)
-		trCorn.Parent = track
-
-		local frac = range > 0 and math.clamp((currentVal - minVal) / range, 0, 1) or 0
-		local fill = Instance.new("Frame")
-		fill.Size = UDim2.new(frac, 0, 1, 0)
-		fill.BackgroundColor3 = self.Window.Theme.Accent
-		fill.BorderSizePixel = 0
-		fill.Parent = track
-
-		local fCorn = Instance.new("UICorner")
-		fCorn.CornerRadius = UDim.new(1, 0)
-		fCorn.Parent = fill
-
-		local knob = Instance.new("Frame")
-		knob.AnchorPoint = Vector2.new(0.5, 0.5)
-		knob.Position = UDim2.new(frac, 0, 0.5, 0)
-		knob.Size = UDim2.new(0, 14, 0, 14)
-		knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-		knob.BorderSizePixel = 0
-		knob.Parent = track
-
-		local kCorn = Instance.new("UICorner")
-		kCorn.CornerRadius = UDim.new(1, 0)
-		kCorn.Parent = knob
-
-		local hit = Instance.new("TextButton")
-		hit.Position = UDim2.new(0, 10, 0, 18)
-		hit.Size = UDim2.new(1, -20, 0, 26)
-		hit.BackgroundTransparency = 1
-		hit.Text = ""
-		hit.Parent = blk
-
-		local sliding = false
-		local function setValFromX(x, emit)
-			local tPos = track.AbsolutePosition.X
-			local tSize = math.max(1, track.AbsoluteSize.X)
-			local rawFrac = math.clamp((x - tPos) / tSize, 0, 1)
-			local rawVal = minVal + range * rawFrac
-			if step and step > 0 and range > 0 then
-				rawVal = minVal + math.round((rawVal - minVal) / step) * step
-			end
-			currentVal = math.clamp(rawVal, minVal, maxVal)
-			local finalFrac = range > 0 and math.clamp((currentVal - minVal) / range, 0, 1) or 0
-			fill.Size = UDim2.new(finalFrac, 0, 1, 0)
-			knob.Position = UDim2.new(finalFrac, 0, 0.5, 0)
-			vLabel.Text = tostring(currentVal) .. suffix
-			if emit and sConfig.Callback then
-				task.spawn(sConfig.Callback, currentVal)
-			end
-		end
-
-		hit.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-				sliding = true
-				setValFromX(input.Position.X, true)
-			end
-		end)
-
-		UserInputService.InputChanged:Connect(function(input)
-			if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-				setValFromX(input.Position.X, true)
-			end
-		end)
-
-		UserInputService.InputEnded:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-				sliding = false
-			end
-		end)
-
-		local handle = {
-			_frame = blk,
-			Get = function()
-				return currentVal
-			end,
-			Set = function(selfOrVal, maybeVal, emit)
-				local v = tonumber(maybeVal ~= nil and maybeVal or selfOrVal) or minVal
-				currentVal = math.clamp(v, minVal, maxVal)
-				local finalFrac = range > 0 and math.clamp((currentVal - minVal) / range, 0, 1) or 0
-				fill.Size = UDim2.new(finalFrac, 0, 1, 0)
-				knob.Position = UDim2.new(finalFrac, 0, 0.5, 0)
-				vLabel.Text = tostring(currentVal) .. suffix
-				if emit and sConfig.Callback then
-					task.spawn(sConfig.Callback, currentVal)
-				end
-			end,
-			SetValue = function(selfOrVal, maybeVal, emit)
-				local v = tonumber(maybeVal ~= nil and maybeVal or selfOrVal) or minVal
-				currentVal = math.clamp(v, minVal, maxVal)
-				local finalFrac = range > 0 and math.clamp((currentVal - minVal) / range, 0, 1) or 0
-				fill.Size = UDim2.new(finalFrac, 0, 1, 0)
-				knob.Position = UDim2.new(finalFrac, 0, 0.5, 0)
-				vLabel.Text = tostring(currentVal) .. suffix
-				if emit and sConfig.Callback then
-					task.spawn(sConfig.Callback, currentVal)
-				end
-			end
-		}
-
-		return handle
-	end
-
-	-- Single Dropdown
-	function tab:CreateDropdown(dConfig: any)
-		dConfig = dConfig or {}
-		local title = dConfig.Name or dConfig.Title or "Dropdown"
-		local options = dConfig.Options or {}
-		local selected = dConfig.Default or options[1] or "Select"
-		local expanded = false
-		local rowHeight = 44
-		local optHeight = 28
-
-		local container = Instance.new("Frame")
-		container.Name = "Dropdown_" .. title
-		container.Size = UDim2.new(1, 0, 0, rowHeight)
-		container.BackgroundColor3 = self.Window.Theme.Surface2
-		container.BorderSizePixel = 0
-		container.ClipsDescendants = true
-		container.Parent = page
-
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 12)
-		corner.Parent = container
-
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = self.Window.Theme.Line
-		stroke.Transparency = self.Window.Theme.LineTransparency
-		stroke.Thickness = 1
-		stroke.Parent = container
-
-		local topBtn = Instance.new("TextButton")
-		topBtn.Name = "TopRow"
-		topBtn.Size = UDim2.new(1, 0, 0, rowHeight)
-		topBtn.BackgroundTransparency = 1
-		topBtn.Text = ""
-		topBtn.Parent = container
-
-		local tLabel = Instance.new("TextLabel")
-		tLabel.Position = UDim2.new(0, 14, 0, 0)
-		tLabel.Size = UDim2.new(0.5, -14, 1, 0)
-		tLabel.BackgroundTransparency = 1
-		tLabel.Text = title
-		tLabel.TextColor3 = self.Window.Theme.Ink
-		tLabel.Font = getUIFont("Bold")
-		tLabel.TextSize = 12
-		tLabel.TextXAlignment = Enum.TextXAlignment.Left
-		tLabel.Parent = topBtn
-
-		local valLabel = Instance.new("TextLabel")
-		valLabel.Position = UDim2.new(0.5, 0, 0, 0)
-		valLabel.Size = UDim2.new(0.5, -34, 1, 0)
-		valLabel.BackgroundTransparency = 1
-		valLabel.Text = tostring(selected)
-		valLabel.TextColor3 = self.Window.Theme.Accent
-		valLabel.Font = getUIFont("Bold")
-		valLabel.TextSize = 11
-		valLabel.TextXAlignment = Enum.TextXAlignment.Right
-		valLabel.TextTruncate = Enum.TextTruncate.AtEnd
-		valLabel.Parent = topBtn
-
-		local arr = Instance.new("ImageLabel")
-		arr.AnchorPoint = Vector2.new(1, 0.5)
-		arr.Position = UDim2.new(1, -12, 0.5, 0)
-		arr.Size = UDim2.new(0, 12, 0, 12)
-		arr.BackgroundTransparency = 1
-		arr.Image = LucianUI.Icons.Chevron
-		arr.ImageColor3 = self.Window.Theme.Ink3
-		arr.Rotation = 90
-		arr.Parent = topBtn
-
-		local optContainer = Instance.new("Frame")
-		optContainer.Position = UDim2.new(0, 0, 0, rowHeight)
-		optContainer.Size = UDim2.new(1, 0, 0, #options * optHeight)
-		optContainer.BackgroundTransparency = 1
-		optContainer.Parent = container
-
-		local optionButtons = {}
-		local function selectOption(optName, emit)
-			selected = optName
-			valLabel.Text = tostring(selected)
-			for name, btn in pairs(optionButtons) do
-				local isMatch = (name == selected)
-				btn.BackgroundColor3 = isMatch and self.Window.Theme.Surface3 or self.Window.Theme.Surface2
-				local txt = btn:FindFirstChild("OptText")
-				if txt then
-					txt.TextColor3 = isMatch and self.Window.Theme.Accent or self.Window.Theme.Ink2
-					txt.Font = isMatch and getUIFont("Bold") or getUIFont("Medium")
-				end
-			end
-			if emit and dConfig.Callback then
-				task.spawn(dConfig.Callback, selected)
-			end
-		end
-
-		for i, optName in ipairs(options) do
-			local optBtn = Instance.new("TextButton")
-			optBtn.Name = "Opt_" .. i
-			optBtn.Position = UDim2.new(0, 0, 0, (i - 1) * optHeight)
-			optBtn.Size = UDim2.new(1, 0, 0, optHeight)
-			optBtn.BackgroundColor3 = (optName == selected) and self.Window.Theme.Surface3 or self.Window.Theme.Surface2
-			optBtn.BorderSizePixel = 0
-			optBtn.Text = ""
-			optBtn.Parent = optContainer
-			optionButtons[optName] = optBtn
-
-			local txt = Instance.new("TextLabel")
-			txt.Name = "OptText"
-			txt.Position = UDim2.new(0, 18, 0, 0)
-			txt.Size = UDim2.new(1, -26, 1, 0)
-			txt.BackgroundTransparency = 1
-			txt.Text = tostring(optName)
-			txt.TextColor3 = (optName == selected) and self.Window.Theme.Accent or self.Window.Theme.Ink2
-			txt.Font = (optName == selected) and getUIFont("Bold") or getUIFont("Medium")
-			txt.TextSize = 11
-			txt.TextXAlignment = Enum.TextXAlignment.Left
-			txt.Parent = optBtn
-
-			optBtn.MouseButton1Click:Connect(function()
-				selectOption(optName, true)
-				expanded = false
-				TweenService:Create(arr, FAST_EASE, { Rotation = 90 }):Play()
-				TweenService:Create(container, FAST_EASE, { Size = UDim2.new(1, 0, 0, rowHeight) }):Play()
-			end)
-		end
-
-		topBtn.MouseButton1Click:Connect(function()
-			expanded = not expanded
-			local targetH = expanded and (rowHeight + #options * optHeight) or rowHeight
-			local targetRot = expanded and -90 or 90
-			TweenService:Create(arr, FAST_EASE, { Rotation = targetRot }):Play()
-			TweenService:Create(container, FAST_EASE, { Size = UDim2.new(1, 0, 0, targetH) }):Play()
-		end)
-
-		local handle = {
-			_frame = container,
-			Get = function()
-				return selected
-			end,
-			Set = function(selfOrVal, maybeVal, emit)
-				local v = maybeVal ~= nil and maybeVal or selfOrVal
-				selectOption(v, emit ~= false)
-			end,
-			SetValue = function(selfOrVal, maybeVal, emit)
-				local v = maybeVal ~= nil and maybeVal or selfOrVal
-				selectOption(v, emit ~= false)
-			end
-		}
-
-		return handle
-	end
-
-	-- Multi-select Dropdown
-	function tab:CreateMultiDropdown(mConfig: any)
-		mConfig = mConfig or {}
-		local title = mConfig.Name or mConfig.Title or "Multi-select"
-		local options = mConfig.Options or {}
-		local selectedMap = {}
-		local selectedList = {}
-
-		for _, opt in ipairs(mConfig.Default or {}) do
-			if not selectedMap[opt] then
-				selectedMap[opt] = true
-				table.insert(selectedList, opt)
-			end
-		end
-
-		local expanded = false
-		local rowHeight = 44
-		local optHeight = 28
-
-		local container = Instance.new("Frame")
-		container.Name = "MultiDropdown_" .. title
-		container.Size = UDim2.new(1, 0, 0, rowHeight)
-		container.BackgroundColor3 = self.Window.Theme.Surface2
-		container.BorderSizePixel = 0
-		container.ClipsDescendants = true
-		container.Parent = page
-
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 12)
-		corner.Parent = container
-
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = self.Window.Theme.Line
-		stroke.Transparency = self.Window.Theme.LineTransparency
-		stroke.Thickness = 1
-		stroke.Parent = container
-
-		local topBtn = Instance.new("TextButton")
-		topBtn.Name = "TopRow"
-		topBtn.Size = UDim2.new(1, 0, 0, rowHeight)
-		topBtn.BackgroundTransparency = 1
-		topBtn.Text = ""
-		topBtn.Parent = container
-
-		local tLabel = Instance.new("TextLabel")
-		tLabel.Position = UDim2.new(0, 14, 0, 0)
-		tLabel.Size = UDim2.new(0.45, -14, 1, 0)
-		tLabel.BackgroundTransparency = 1
-		tLabel.Text = title
-		tLabel.TextColor3 = self.Window.Theme.Ink
-		tLabel.Font = getUIFont("Bold")
-		tLabel.TextSize = 12
-		tLabel.TextXAlignment = Enum.TextXAlignment.Left
-		tLabel.Parent = topBtn
-
-		local summaryLabel = Instance.new("TextLabel")
-		summaryLabel.Position = UDim2.new(0.45, 0, 0, 0)
-		summaryLabel.Size = UDim2.new(0.55, -34, 1, 0)
-		summaryLabel.BackgroundTransparency = 1
-		summaryLabel.TextColor3 = self.Window.Theme.Ink3
-		summaryLabel.Font = getUIFont("Medium")
-		summaryLabel.TextSize = 11
-		summaryLabel.TextXAlignment = Enum.TextXAlignment.Right
-		summaryLabel.TextTruncate = Enum.TextTruncate.AtEnd
-		summaryLabel.Parent = topBtn
-
-		local arr = Instance.new("ImageLabel")
-		arr.AnchorPoint = Vector2.new(1, 0.5)
-		arr.Position = UDim2.new(1, -12, 0.5, 0)
-		arr.Size = UDim2.new(0, 12, 0, 12)
-		arr.BackgroundTransparency = 1
-		arr.Image = LucianUI.Icons.Chevron
-		arr.ImageColor3 = self.Window.Theme.Ink3
-		arr.Rotation = 90
-		arr.Parent = topBtn
-
-		local optContainer = Instance.new("Frame")
-		optContainer.Position = UDim2.new(0, 0, 0, rowHeight)
-		optContainer.Size = UDim2.new(1, 0, 0, #options * optHeight)
-		optContainer.BackgroundTransparency = 1
-		optContainer.Parent = container
-
-		local optionButtons = {}
-
-		local function updateSummary()
-			if #selectedList == 0 then
-				summaryLabel.Text = "None"
-			elseif #selectedList <= 2 then
-				summaryLabel.Text = table.concat(selectedList, ", ")
-			else
-				summaryLabel.Text = selectedList[1] .. ", " .. selectedList[2] .. " +" .. (#selectedList - 2) .. " more"
-			end
-			for optName, optBtn in pairs(optionButtons) do
-				local isSel = selectedMap[optName] == true
-				optBtn.BackgroundColor3 = isSel and self.Window.Theme.Surface3 or self.Window.Theme.Surface2
-				local iconCheck = optBtn:FindFirstChild("CheckIcon")
-				if iconCheck then
-					iconCheck.Visible = isSel
-				end
-				local text = optBtn:FindFirstChild("OptText")
-				if text then
-					text.TextColor3 = isSel and self.Window.Theme.Accent or self.Window.Theme.Ink2
-					text.Font = isSel and getUIFont("Bold") or getUIFont("Medium")
-				end
-			end
-		end
-
-		for i, optName in ipairs(options) do
-			local optBtn = Instance.new("TextButton")
-			optBtn.Name = "Opt_" .. i
-			optBtn.Position = UDim2.new(0, 0, 0, (i - 1) * optHeight)
-			optBtn.Size = UDim2.new(1, 0, 0, optHeight)
-			optBtn.BackgroundTransparency = 0
-			optBtn.BorderSizePixel = 0
-			optBtn.Text = ""
-			optBtn.Parent = optContainer
-			optionButtons[optName] = optBtn
-
-			local chk = Instance.new("ImageLabel")
-			chk.Name = "CheckIcon"
-			chk.AnchorPoint = Vector2.new(0, 0.5)
-			chk.Position = UDim2.new(0, 14, 0.5, 0)
-			chk.Size = UDim2.new(0, 14, 0, 14)
-			chk.BackgroundTransparency = 1
-			chk.Image = LucianUI.Icons.Check
-			chk.ImageColor3 = self.Window.Theme.Accent
-			chk.Visible = false
-			chk.Parent = optBtn
-
-			local txt = Instance.new("TextLabel")
-			txt.Name = "OptText"
-			txt.Position = UDim2.new(0, 36, 0, 0)
-			txt.Size = UDim2.new(1, -44, 1, 0)
-			txt.BackgroundTransparency = 1
-			txt.Text = tostring(optName)
-			txt.TextSize = 11
-			txt.TextXAlignment = Enum.TextXAlignment.Left
-			txt.Parent = optBtn
-
-			optBtn.MouseButton1Click:Connect(function()
-				if selectedMap[optName] then
-					selectedMap[optName] = nil
-					for idx, v in ipairs(selectedList) do
-						if v == optName then
-							table.remove(selectedList, idx)
-							break
-						end
-					end
-				else
-					selectedMap[optName] = true
-					table.insert(selectedList, optName)
-				end
-				updateSummary()
-				if mConfig.Callback then
-					task.spawn(mConfig.Callback, selectedList)
-				end
-			end)
-		end
-
-		updateSummary()
-
-		topBtn.MouseButton1Click:Connect(function()
-			expanded = not expanded
-			local targetH = expanded and (rowHeight + #options * optHeight) or rowHeight
-			local targetRot = expanded and -90 or 90
-			TweenService:Create(arr, FAST_EASE, { Rotation = targetRot }):Play()
-			TweenService:Create(container, FAST_EASE, { Size = UDim2.new(1, 0, 0, targetH) }):Play()
-		end)
-
-		local handle = {
-			_frame = container,
-			Get = function()
-				return selectedList
-			end,
-			Set = function(selfOrVals, maybeVals, emit)
-				local vals = type(selfOrVals) == "table" and not maybeVals and selfOrVals or maybeVals or {}
-				selectedMap = {}
-				selectedList = {}
-				for _, opt in ipairs(vals) do
-					selectedMap[opt] = true
-					table.insert(selectedList, opt)
-				end
-				updateSummary()
-				if emit and mConfig.Callback then
-					task.spawn(mConfig.Callback, selectedList)
-				end
-			end,
-			SetValue = function(selfOrVals, maybeVals, emit)
-				local vals = type(selfOrVals) == "table" and not maybeVals and selfOrVals or maybeVals or {}
-				selectedMap = {}
-				selectedList = {}
-				for _, opt in ipairs(vals) do
-					selectedMap[opt] = true
-					table.insert(selectedList, opt)
-				end
-				updateSummary()
-				if emit and mConfig.Callback then
-					task.spawn(mConfig.Callback, selectedList)
-				end
-			end
-		}
-
-		return handle
-	end
-
-	-- Textbox Control
-	function tab:CreateTextbox(iConfig: any)
-		iConfig = iConfig or {}
-		local title = iConfig.Name or iConfig.Title or "Textbox"
-		local defaultText = iConfig.Default or iConfig.Text or ""
-
-		local blk = Instance.new("Frame")
-		blk.Name = "Textbox_" .. title
-		blk.Size = UDim2.new(1, 0, 0, 44)
-		blk.BackgroundColor3 = self.Window.Theme.Surface2
-		blk.BorderSizePixel = 0
-		blk.Parent = page
-
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 12)
-		corner.Parent = blk
-
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = self.Window.Theme.Line
-		stroke.Transparency = self.Window.Theme.LineTransparency
-		stroke.Thickness = 1
-		stroke.Parent = blk
-
-		local tLabel = Instance.new("TextLabel")
-		tLabel.Position = UDim2.new(0, 14, 0, 0)
-		tLabel.Size = UDim2.new(0.45, -14, 1, 0)
-		tLabel.BackgroundTransparency = 1
-		tLabel.Text = title
-		tLabel.TextColor3 = self.Window.Theme.Ink
-		tLabel.Font = getUIFont("Bold")
-		tLabel.TextSize = 12
-		tLabel.TextXAlignment = Enum.TextXAlignment.Left
-		tLabel.Parent = blk
-
-		local tb = Instance.new("TextBox")
-		tb.AnchorPoint = Vector2.new(1, 0.5)
-		tb.Position = UDim2.new(1, -12, 0.5, 0)
-		tb.Size = UDim2.new(0.5, 0, 0, 26)
-		tb.BackgroundColor3 = self.Window.Theme.Surface3
-		tb.BorderSizePixel = 0
-		tb.Text = defaultText
-		tb.PlaceholderText = iConfig.Placeholder or "Enter value..."
-		tb.PlaceholderColor3 = self.Window.Theme.Ink3
-		tb.TextColor3 = self.Window.Theme.Ink
-		tb.Font = getUIFont("Medium")
-		tb.TextSize = 11
-		tb.ClearTextOnFocus = (iConfig.ClearTextOnFocus or iConfig.ClearOnFocus) == true
-		tb.Parent = blk
-
-		local tbCorn = Instance.new("UICorner")
-		tbCorn.CornerRadius = UDim.new(0, 8)
-		tbCorn.Parent = tb
-
-		tb.FocusLost:Connect(function(enter)
-			if iConfig.Callback then
-				task.spawn(iConfig.Callback, tb.Text, enter)
-			end
-		end)
-
-		local handle = {
-			_frame = blk,
-			Get = function()
-				return tb.Text
-			end,
-			Set = function(selfOrVal, maybeVal)
-				local v = tostring(maybeVal ~= nil and maybeVal or selfOrVal or "")
-				tb.Text = v
-			end,
-			SetValue = function(selfOrVal, maybeVal)
-				local v = tostring(maybeVal ~= nil and maybeVal or selfOrVal or "")
-				tb.Text = v
-			end
-		}
-
-		return handle
-	end
-
-	-- Text Label
-	function tab:CreateLabel(textOrConfig: any)
-		local text = type(textOrConfig) == "table" and (textOrConfig.Text or textOrConfig.Name or "") or tostring(textOrConfig or "")
-
-		local lblFrame = Instance.new("Frame")
-		lblFrame.Name = "LabelFrame"
-		lblFrame.Size = UDim2.new(1, 0, 0, 28)
-		lblFrame.BackgroundColor3 = self.Window.Theme.Surface2
-		lblFrame.BorderSizePixel = 0
-		lblFrame.Parent = page
-
-		local lc = Instance.new("UICorner")
-		lc.CornerRadius = UDim.new(0, 10)
-		lc.Parent = lblFrame
-
-		local lt = Instance.new("TextLabel")
-		lt.Position = UDim2.new(0, 12, 0, 0)
-		lt.Size = UDim2.new(1, -24, 1, 0)
-		lt.BackgroundTransparency = 1
-		lt.Text = text
-		lt.TextColor3 = self.Window.Theme.Ink2
-		lt.Font = getUIFont("Medium")
-		lt.TextSize = 11
-		lt.TextWrapped = true
-		lt.TextXAlignment = Enum.TextXAlignment.Left
-		lt.Parent = lblFrame
-
-		local handle = {
-			_frame = lblFrame,
-			Set = function(selfOrText, maybeText)
-				local newTxt = tostring(maybeText ~= nil and maybeText or selfOrText or "")
-				lt.Text = newTxt
-			end,
-			SetValue = function(selfOrText, maybeText)
-				local newTxt = tostring(maybeText ~= nil and maybeText or selfOrText or "")
-				lt.Text = newTxt
-			end
-		}
-
-		return handle
-	end
-
-	-- Signature Element #040 Block (.u040-blk, 48px)
-	function tab:CreateBlock(cardConfig: {
-		Title: string,
-		Description: string?,
-		Meta: string?,
-		GradientIndex: number?,
-		Callback: (() -> ())?
-	})
-		local rawIdx = cardConfig.GradientIndex or index
-		local gIdx = ((rawIdx - 1) % 4) + 1
-		local gSeq = self.Window.Theme.BlockGradients[gIdx]
-
-		local blk = Instance.new("Frame")
-		blk.Name = "Block_" .. cardConfig.Title
-		blk.Size = UDim2.new(1, 0, 0, 48)
-		blk.BackgroundColor3 = self.Window.Theme.Surface2
-		blk.BorderSizePixel = 0
-		blk.Parent = page
-
-		local bCorner = Instance.new("UICorner")
-		bCorner.CornerRadius = UDim.new(0, 12)
-		bCorner.Parent = blk
-
-		local badgeBox = Instance.new("Frame")
-		badgeBox.Name = "BadgeIcon"
-		badgeBox.Position = UDim2.new(0, 10, 0, 10)
-		badgeBox.Size = UDim2.new(0, 28, 0, 28)
-		badgeBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-		badgeBox.BorderSizePixel = 0
-		badgeBox.Parent = blk
-
-		local bbCorner = Instance.new("UICorner")
-		bbCorner.CornerRadius = UDim.new(0, 8)
-		bbCorner.Parent = badgeBox
-
-		local bbGrad = Instance.new("UIGradient")
-		bbGrad.Color = gSeq
-		bbGrad.Rotation = 45
-		bbGrad.Parent = badgeBox
-
-		local bTitle = Instance.new("TextLabel")
-		bTitle.Name = "Title"
-		bTitle.Position = UDim2.new(0, 46, 0, 8)
-		bTitle.Size = UDim2.new(1, -56, 0, 16)
-		bTitle.BackgroundTransparency = 1
-		bTitle.Text = cardConfig.Title
-		bTitle.TextColor3 = self.Window.Theme.Ink
-		bTitle.Font = getUIFont("Bold")
-		bTitle.TextSize = 12
-		bTitle.TextXAlignment = Enum.TextXAlignment.Left
-		bTitle.Parent = blk
-
-		local bDesc = Instance.new("TextLabel")
-		bDesc.Name = "Desc"
-		bDesc.Position = UDim2.new(0, 46, 0, 24)
-		bDesc.Size = UDim2.new(1, -56, 0, 16)
-		bDesc.BackgroundTransparency = 1
-		bDesc.Text = cardConfig.Description or ""
-		bDesc.TextColor3 = self.Window.Theme.Ink3
-		bDesc.Font = getUIFont("Medium")
-		bDesc.TextSize = 10
-		bDesc.TextXAlignment = Enum.TextXAlignment.Left
-		bDesc.Parent = blk
-
-		if cardConfig.Callback then
-			local btn = Instance.new("TextButton")
-			btn.Size = UDim2.new(1, 0, 1, 0)
-			btn.BackgroundTransparency = 1
-			btn.Text = ""
-			btn.Parent = blk
-			btn.MouseButton1Click:Connect(cardConfig.Callback)
-		end
-
-		return blk
-	end
-
-	-- Keybind Listener
-	function tab:CreateKeybind(kConfig: any)
-		kConfig = kConfig or {}
-		local title = kConfig.Name or kConfig.Title or "Keybind"
-		local curKey = kConfig.Default or Enum.KeyCode.RightControl
-		local listening = false
-
-		local blk = Instance.new("Frame")
-		blk.Name = "Keybind_" .. title
-		blk.Size = UDim2.new(1, 0, 0, 44)
-		blk.BackgroundColor3 = self.Window.Theme.Surface2
-		blk.BorderSizePixel = 0
-		blk.Parent = page
-
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 12)
-		corner.Parent = blk
-
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = self.Window.Theme.Line
-		stroke.Transparency = self.Window.Theme.LineTransparency
-		stroke.Thickness = 1
-		stroke.Parent = blk
-
-		local tLabel = Instance.new("TextLabel")
-		tLabel.Position = UDim2.new(0, 14, 0, 0)
-		tLabel.Size = UDim2.new(1, -94, 1, 0)
-		tLabel.BackgroundTransparency = 1
-		tLabel.Text = title
-		tLabel.TextColor3 = self.Window.Theme.Ink
-		tLabel.Font = getUIFont("Bold")
-		tLabel.TextSize = 12
-		tLabel.TextXAlignment = Enum.TextXAlignment.Left
-		tLabel.Parent = blk
-
-		local kBtn = Instance.new("TextButton")
-		kBtn.AnchorPoint = Vector2.new(1, 0.5)
-		kBtn.Position = UDim2.new(1, -12, 0.5, 0)
-		kBtn.Size = UDim2.new(0, 76, 0, 24)
-		kBtn.BackgroundColor3 = self.Window.Theme.Surface3
-		kBtn.BorderSizePixel = 0
-		kBtn.Text = curKey.Name
-		kBtn.TextColor3 = self.Window.Theme.Accent
-		kBtn.Font = getUIFont("Bold")
-		kBtn.TextSize = 11
-		kBtn.Parent = blk
-
-		local kCorn = Instance.new("UICorner")
-		kCorn.CornerRadius = UDim.new(0, 7)
-		kCorn.Parent = kBtn
-
-		kBtn.MouseButton1Click:Connect(function()
-			listening = true
-			kBtn.Text = "..."
-			local conn
-			conn = UserInputService.InputBegan:Connect(function(input)
-				if input.UserInputType == Enum.UserInputType.Keyboard then
-					curKey = input.KeyCode
-					kBtn.Text = curKey.Name
-					listening = false
-					conn:Disconnect()
-					if kConfig.Callback then
-						task.spawn(kConfig.Callback, curKey)
-					end
-				end
-			end)
-		end)
-
-		return { _frame = blk }
-	end
-
-	-- Tab Updaters
-	function tab:SetTitle(newTitle: string)
-		tab.Title = newTitle
-		itLabel.Text = newTitle
-		if self.Window.H3Title and self.Window.CurrentIndex == index then
-			self.Window.H3Title.Text = newTitle
-		end
-		if self.Window.TabBar then
-			self.Window.TabBar:SetTitle(index, newTitle)
-		end
-	end
-
-	function tab:SetIcon(newIcon: string)
-		tab.Icon = newIcon
-		itIcon.Image = newIcon
-		if self.Window.TabBar then
-			self.Window.TabBar:SetIcon(index, newIcon)
-		end
-	end
-
-	function tab:SetBadge(count: number?)
-		tab.Badge = count
-		if itBadge then
-			local bText = itBadge:FindFirstChildOfClass("TextLabel")
-			if count and count > 0 then
-				if bText then bText.Text = tostring(count) end
-				itBadge.Visible = true
-			else
-				itBadge.Visible = false
-			end
-		end
-		if self.Window.TabBar then
-			self.Window.TabBar:SetBadge(index, count)
-		end
-	end
-
-	table.insert(self.Tabs, tab)
-
-	-- Synchronize with Bottom TabBar #041
-	if self.TabBar then
-		table.insert(self.TabBar.TabsData, {
-			Id = string.lower(tab.Title),
-			Title = tab.Title,
-			Icon = tab.Icon,
-			Badge = tab.Badge
-		})
-		self.TabBar:RebuildTabs()
-	end
-
-	return tab
+function NexusLib:PlayIntro(callback)
+    return NexusLib:PlayInkIntro(callback)
 end
 
-function Element040:SelectTab(index: number, immediate: boolean?)
-	if index < 1 or index > #self.Tabs then return end
-	self.CurrentIndex = index
-
-	-- Slide Active Highlight
-	local targetHlPos = UDim2.new(0, 0, 0, (index - 1) * 40)
-	if immediate then
-		self.ActiveHl.Position = targetHlPos
-	else
-		TweenService:Create(self.ActiveHl, SPRING_BOUNCE, { Position = targetHlPos }):Play()
-	end
-
-	-- Swap Title
-	local activeTab = self.Tabs[index]
-	if activeTab then
-		if not immediate then
-			local shiftDown = TweenService:Create(self.H3Title, FAST_EASE, {
-				TextTransparency = 1,
-				Position = UDim2.new(0, 18, 0, 32)
-			})
-			shiftDown:Play()
-			shiftDown.Completed:Connect(function()
-				self.H3Title.Text = activeTab.Title
-				self.H3Title.Position = UDim2.new(0, 18, 0, 16)
-				TweenService:Create(self.H3Title, SPRING_BOUNCE, {
-					TextTransparency = 0,
-					Position = UDim2.new(0, 18, 0, 24)
-				}):Play()
-			end)
-		else
-			self.H3Title.Text = activeTab.Title
-			self.H3Title.Position = UDim2.new(0, 18, 0, 24)
-			self.H3Title.TextTransparency = 0
-		end
-	end
-
-	-- Show active page & update icons
-	for i, t in ipairs(self.Tabs) do
-		t.Page.Visible = (i == index)
-		local rItem = self.RailItems and self.RailItems[i]
-		if rItem then
-			rItem.Icon.ImageColor3 = (i == index) and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(140, 138, 150)
-		end
-	end
-
-	-- Sync with Bottom Tab Bar (#041)
-	if self.TabBar and self.TabBar.CurrentIndex ~= index then
-		self.TabBar:SelectTab(index, immediate)
-	end
+--------------------------------------------------------------------------
+-- shared surface (native Frame so text & 1px strokes stay razor-sharp)
+--------------------------------------------------------------------------
+local function Surface(class, props, radius)
+    local p = {
+        BackgroundColor3 = Theme.Surface,
+        BackgroundTransparency = Theme.SurfaceAlpha,
+        BorderSizePixel = 0,
+    }
+    for k, v in pairs(props) do p[k] = v end
+    return New(class, p, { Corner(radius or 14), Rim(Theme.StrokeAlpha) })
 end
 
-function Element040:SetTheme(themeName: string)
-	local newTheme = LucianUI.Tokens[themeName]
-	if not newTheme then return end
-	self.ThemeName = themeName
-	self.Theme = newTheme
-	self.MainCard.BackgroundColor3 = newTheme.Surface
-	self.H3Title.TextColor3 = newTheme.Ink
-
-	if self.TabBar then
-		self.TabBar.ThemeName = themeName
-		self.TabBar.Theme = newTheme
-		if self.TabBar.LeftBar then self.TabBar.LeftBar.BackgroundColor3 = newTheme.Surface end
-		if self.TabBar.RightBar then self.TabBar.RightBar.BackgroundColor3 = newTheme.Surface end
-		if self.TabBar.BottomBar then self.TabBar.BottomBar.BackgroundColor3 = newTheme.Surface end
-		if self.TabBar.Scoop then self.TabBar.Scoop.ImageColor3 = newTheme.Surface end
-				if self.TabBar.BarStroke then
-			self.TabBar.BarStroke.Color = newTheme.Line
-			self.TabBar.BarStroke.Transparency = newTheme.LineTransparency
-		end
-		if self.TabBar.BubbleGrad then
-			self.TabBar.BubbleGrad.Color = newTheme.Gradient
-		end
-		self.TabBar:SelectTab(self.CurrentIndex, true)
-	end
+-- flat control button used in island drawer and inside rows
+local function Button(parent, text, props, ghost)
+    local bg = ghost and Theme.Surface or Theme.Control
+    local b = New("TextButton", {
+        BackgroundColor3 = bg,
+        BackgroundTransparency = ghost and 0.4 or 0,
+        BorderSizePixel = 0,
+        AutoButtonColor = false,
+        Text = text,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 11,
+        TextColor3 = Theme.Text,
+        Parent = parent,
+    }, { Corner(7) })
+    if ghost then
+        Rim(Theme.StrokeAlpha).Parent = b
+    end
+    for k, v in pairs(props or {}) do b[k] = v end
+    b.MouseEnter:Connect(function()
+        Tween(b, 0.15, nil, nil, { BackgroundColor3 = Theme.ControlHover, BackgroundTransparency = 0 })
+    end)
+    b.MouseLeave:Connect(function()
+        Tween(b, 0.15, nil, nil, { BackgroundColor3 = bg, BackgroundTransparency = ghost and 0.4 or 0 })
+    end)
+    b.MouseButton1Down:Connect(function()
+        local s = b:FindFirstChild("Press") or New("UIScale", { Name = "Press", Parent = b })
+        Tween(s, 0.08, nil, nil, { Scale = 0.96 })
+    end)
+    b.MouseButton1Up:Connect(function()
+        local s = b:FindFirstChild("Press")
+        if s then Tween(s, 0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Scale = 1 }) end
+    end)
+    return b
 end
 
-function Element040:SetTitle(title: string)
-	if self.BrandName then
-		self.BrandName.Text = title
-	end
+--------------------------------------------------------------------------
+-- DYNAMIC ISLAND
+--------------------------------------------------------------------------
+local ISLAND_TOP, ISLAND_W, ISLAND_H = 14, 340, 40
+local ISLAND_OPEN_W, ISLAND_OPEN_H = 400, 82
+
+function NexusLib:CreateDynamicIsland(config)
+    config = config or {}
+    DestroyExisting("Nexus_Island")
+    local Gui = New("ScreenGui", {
+        Name = "Nexus_Island", DisplayOrder = 100000, ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true, Parent = GetSafeGui(),
+    })
+
+    local Island = Surface("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0),
+        Position = UDim2.new(0.5, 0, 0, ISLAND_TOP),
+        Size = UDim2.fromOffset(ISLAND_W, ISLAND_H),
+        ClipsDescendants = true,
+        Parent = Gui,
+    }, 20)
+    local IslandCorner = Island:FindFirstChildOfClass("UICorner")
+
+    local Bar = New("TextButton", {
+        Size = UDim2.new(1, 0, 0, ISLAND_H), BackgroundTransparency = 1, Text = "",
+        AutoButtonColor = false, Parent = Island,
+    })
+    Logo(Bar, { Position = UDim2.new(0, 12, 0.5, -9), Size = UDim2.fromOffset(18, 18) })
+    local NameLabel = Label(Bar, {
+        Position = UDim2.fromOffset(36, 0), Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X,
+        Font = Enum.Font.GothamBold, TextSize = 12, Text = config.Title or "Nexus",
+    })
+    local Status = Label(Bar, {
+        Position = UDim2.fromOffset(80, 0), Size = UDim2.new(0, 110, 1, 0),
+        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Dim, Text = config.Status or "Active",
+    })
+    local function updateStatusPos()
+        Status.Position = UDim2.fromOffset(36 + NameLabel.TextBounds.X + 8, 0)
+    end
+    NameLabel:GetPropertyChangedSignal("TextBounds"):Connect(updateStatusPos)
+    task.defer(updateStatusPos)
+
+    local Stats = Label(Bar, {
+        AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -33, 0, 0), Size = UDim2.new(0, 115, 1, 0),
+        Font = Enum.Font.Code, TextSize = 10, TextColor3 = Theme.Dim, TextXAlignment = Enum.TextXAlignment.Right,
+        RichText = true,
+        Text = "144 fps <font color=\"#5a5a62\">" .. DOT .. "</font> 19ms",
+    })
+    local Caret = Chevron(Bar, {
+        AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -13, 0.5, 0),
+    }, Theme.Faint)
+
+    -- drawer: Hide UI + Test notify
+    local Drawer = New("Frame", {
+        Position = UDim2.fromOffset(10, ISLAND_H + 2), Size = UDim2.new(1, -20, 0, 30),
+        BackgroundTransparency = 1, Visible = false, Parent = Island,
+    })
+    local HideBtn = Button(Drawer, "Hide UI", {
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.25, -2, 0.5, 0), Size = UDim2.new(0.5, -3, 1, 0),
+    }, false)
+    local TestBtn = Button(Drawer, "Test notify", {
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.75, 2, 0.5, 0), Size = UDim2.new(0.5, -3, 1, 0),
+    }, true)
+
+    local IslandApi = { Gui = Gui, Frame = Island, Expanded = false, ShowStats = true }
+    NexusLib.ActiveIsland = IslandApi
+
+    function IslandApi:SetExpanded(on)
+        IslandApi.Expanded = on
+        if on then
+            Drawer.Visible = true
+        else
+            task.delay(0.25, function()
+                if not IslandApi.Expanded then
+                    Drawer.Visible = false
+                end
+            end)
+        end
+        Tween(Island, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+            Size = on and UDim2.fromOffset(ISLAND_OPEN_W, ISLAND_OPEN_H) or UDim2.fromOffset(ISLAND_W, ISLAND_H),
+        })
+        if IslandCorner then
+            Tween(IslandCorner, 0.35, nil, nil, { CornerRadius = UDim.new(0, on and 16 or 20) })
+        end
+        Caret:SetOpen(on, Theme.Text, Theme.Faint)
+        if NexusLib.ActiveWindow then
+            NexusLib.ActiveWindow:PushDown(on)
+        end
+    end
+    function IslandApi:SetStatus(text)
+        Status.TextTransparency = 1
+        local targetX = 36 + NameLabel.TextBounds.X + 8
+        Status.Position = UDim2.fromOffset(targetX, 4)
+        Status.Text = text
+        Tween(Status, 0.28, nil, nil, { TextTransparency = 0, Position = UDim2.fromOffset(targetX, 0) })
+    end
+    function IslandApi:SetStatsVisible(visible)
+        IslandApi.ShowStats = visible
+        Stats.Visible = visible
+    end
+    function IslandApi:SetHiddenLabel(hidden)
+        HideBtn.Text = hidden and "Show UI" or "Hide UI"
+    end
+    function IslandApi:Gulp()
+        Tween(Island, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+            Size = UDim2.fromOffset(ISLAND_W + 12, ISLAND_H + 4)
+        })
+        task.delay(0.12, function()
+            Tween(Island, 0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+                Size = UDim2.fromOffset(ISLAND_W, ISLAND_H)
+            })
+        end)
+    end
+
+    Bar.MouseButton1Click:Connect(function() IslandApi:SetExpanded(not IslandApi.Expanded) end)
+    Island.MouseEnter:Connect(function() Tween(Island.UIStroke, 0.2, nil, nil, { Transparency = Theme.StrokeHover }) end)
+    Island.MouseLeave:Connect(function() Tween(Island.UIStroke, 0.2, nil, nil, { Transparency = Theme.StrokeAlpha }) end)
+    HideBtn.MouseButton1Click:Connect(function()
+        if NexusLib.ActiveWindow then
+            NexusLib.ActiveWindow:ToggleVisible()
+        end
+        IslandApi:SetExpanded(false)
+    end)
+    TestBtn.MouseButton1Click:Connect(function()
+        NexusLib:Notify({ Title = "Nexus", Content = "This is a test notification" })
+    end)
+
+    local frames, last = 0, os.clock()
+    local statsConn
+    statsConn = TrackConn(RunService.RenderStepped:Connect(function()
+        if not Gui.Parent then
+            if statsConn then statsConn:Disconnect() end
+            return
+        end
+        frames = frames + 1
+        if os.clock() - last >= 1 then
+            local ping = 19
+            pcall(function()
+                ping = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
+            end)
+            Stats.Text = frames .. " fps <font color=\"#5a5a62\">" .. DOT .. "</font> " .. ping .. "ms"
+            frames, last = 0, os.clock()
+        end
+    end))
+
+    return IslandApi
 end
 
-function Element040:SetSubTitle(subTitle: string)
-	if self.SubTitleLabel then
-		self.SubTitleLabel.Text = subTitle
-	end
+--------------------------------------------------------------------------
+-- NOTIFICATIONS (stacked bottom-right, countdown bar, slide in / collapse out)
+--------------------------------------------------------------------------
+local NOTE_W, NOTE_H, NOTE_MAX = 260, 56, 5
+local NoteQueue = {}
+
+function NexusLib:Notify(cfg)
+    cfg = cfg or {}
+    local duration = cfg.Duration or NexusLib.NotifyDuration or 3
+    local parent = GetSafeGui()
+    local Gui = parent:FindFirstChild("Nexus_Notifications")
+    if not Gui then
+        Gui = New("ScreenGui", {
+            Name = "Nexus_Notifications", DisplayOrder = 100001, ResetOnSpawn = false,
+            ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true, Parent = parent,
+        })
+        New("Frame", {
+            Name = "Stack", AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -20, 1, -20),
+            Size = UDim2.new(0, NOTE_W, 1, -40), BackgroundTransparency = 1, Parent = Gui,
+        }, {
+            New("UIListLayout", {
+                VerticalAlignment = Enum.VerticalAlignment.Bottom, Padding = UDim.new(0, 0),
+                SortOrder = Enum.SortOrder.LayoutOrder,
+            }),
+        })
+    end
+    local Stack = Gui.Stack
+
+    local Slot = New("Frame", {
+        Size = UDim2.fromOffset(NOTE_W, 0), BackgroundTransparency = 1,
+        ClipsDescendants = true, LayoutOrder = math.floor(os.clock() * 1000), Parent = Stack,
+    })
+    local Card = Surface("Frame", {
+        AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 28, 1, 0),
+        Size = UDim2.fromOffset(NOTE_W, NOTE_H), ClipsDescendants = true, Parent = Slot,
+    }, 12)
+    local Icon = Logo(Card, { Position = UDim2.fromOffset(12, 12), Size = UDim2.fromOffset(16, 16) })
+    local TitleLbl = Label(Card, {
+        Position = UDim2.fromOffset(36, 10), Size = UDim2.new(1, -48, 0, 16),
+        Font = Enum.Font.GothamBold, TextSize = 12, Text = cfg.Title or "Nexus",
+        TextTruncate = Enum.TextTruncate.AtEnd,
+    })
+    local BodyLbl = Label(Card, {
+        Position = UDim2.fromOffset(36, 27), Size = UDim2.new(1, -48, 0, 16),
+        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Dim, Text = cfg.Content or cfg.Message or "",
+        TextTruncate = Enum.TextTruncate.AtEnd,
+    })
+
+    local note = { Slot = Slot, Card = Card, Closed = false }
+    function note:Close()
+        if note.Closed then return end
+        note.Closed = true
+        for i, n in ipairs(NoteQueue) do
+            if n == note then table.remove(NoteQueue, i) break end
+        end
+        Tween(Card, 0.26, Enum.EasingStyle.Quart, Enum.EasingDirection.In, {
+            Position = UDim2.new(0, 32, 1, 0), BackgroundTransparency = 1,
+        })
+        if Card:FindFirstChild("UIStroke") then
+            Tween(Card.UIStroke, 0.2, nil, nil, { Transparency = 1 })
+        end
+        Tween(TitleLbl, 0.2, nil, nil, { TextTransparency = 1 })
+        Tween(BodyLbl, 0.2, nil, nil, { TextTransparency = 1 })
+        if Icon then
+            Tween(Icon, 0.2, nil, nil, { ImageTransparency = 1 })
+        end
+        task.delay(0.16, function()
+            Tween(Slot, 0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(NOTE_W, 0) })
+        end)
+        task.delay(0.46, function() pcall(function() Slot:Destroy() end) end)
+    end
+
+    table.insert(NoteQueue, note)
+    while #NoteQueue > NOTE_MAX do
+        NoteQueue[1]:Close()
+    end
+
+    Tween(Slot, 0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(NOTE_W, NOTE_H + 8) })
+    Tween(Card, 0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Position = UDim2.new(0, 0, 1, 0) })
+    task.delay(duration, function() note:Close() end)
+    return note
 end
 
-function Element040:SetLogo(logoId: string)
-	if self.LogoImage then
-		self.LogoImage.Image = logoId
-		self.LogoImage.Visible = true
-	end
+--------------------------------------------------------------------------
+-- WINDOW
+--------------------------------------------------------------------------
+function NexusLib:CreateWindow(config)
+    config = config or {}
+    if config.Keybind then
+        NexusLib.ToggleKey = config.Keybind
+    end
+    DestroyExisting("Nexus_Window")
+    local size = config.Size or UDim2.fromOffset(NexusLib.DefaultWindowSize.X, NexusLib.DefaultWindowSize.Y)
+    local homeY = ISLAND_TOP + ISLAND_H + 16
+    local defaultPos = UDim2.new(0.5, 0, 0, homeY)
+    local restPos = defaultPos
+
+    local Gui = New("ScreenGui", {
+        Name = "Nexus_Window", DisplayOrder = 99990, ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true, Parent = GetSafeGui(),
+    })
+
+    -- Native Frame (not CanvasGroup) so all fonts, corners and 1px strokes render crisp at 100% resolution
+    local Frame = Surface("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0),
+        Position = restPos,
+        Size = size,
+        ClipsDescendants = true,
+        Parent = Gui,
+    }, 14)
+
+    local Window = { Tabs = {}, CurrentTab = nil, Gui = Gui, Frame = Frame, Visible = true, Pushed = false }
+    NexusLib.ActiveWindow = Window
+    local closeOpenDropdown = nil
+    local function dismissDropdown()
+        if closeOpenDropdown then closeOpenDropdown() end
+    end
+
+    ---------------- title bar ----------------
+    local TitleBar = New("Frame", {
+        Size = UDim2.new(1, 0, 0, 46), BackgroundTransparency = 1, Parent = Frame,
+    })
+    -- 1px bottom divider
+    New("Frame", {
+        AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 1),
+        BackgroundColor3 = Theme.Divider, BorderSizePixel = 0, Parent = TitleBar,
+    })
+    Logo(TitleBar, { Position = UDim2.fromOffset(16, 14), Size = UDim2.fromOffset(18, 18) })
+    local TitleText = Label(TitleBar, {
+        Position = UDim2.fromOffset(42, 0), Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X,
+        Font = Enum.Font.GothamBold, TextSize = 13, Text = config.Title or "Nexus Hub",
+    })
+    local Sub = Label(TitleBar, {
+        Position = UDim2.fromOffset(116, 1), Size = UDim2.new(0, 200, 1, 0),
+        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Faint, Text = config.Subtitle or config.SubTitle or "Universal",
+    })
+    local function updateSubPos()
+        Sub.Position = UDim2.fromOffset(42 + TitleText.TextBounds.X + 8, 1)
+    end
+    TitleText:GetPropertyChangedSignal("TextBounds"):Connect(updateSubPos)
+    task.defer(updateSubPos)
+
+    local MinBtn = New("TextButton", {
+        AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.fromOffset(26, 26),
+        BackgroundColor3 = Theme.Control, BackgroundTransparency = 1, BorderSizePixel = 0,
+        AutoButtonColor = false, Text = "", Parent = TitleBar,
+    }, { Corner(7) })
+    local MinLine = New("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(10, 2),
+        BackgroundColor3 = Theme.Dim, BorderSizePixel = 0, Parent = MinBtn,
+    }, { Corner(1) })
+    local minHovered = false
+    MinBtn.MouseEnter:Connect(function()
+        minHovered = true
+        Tween(MinBtn, 0.15, nil, nil, { BackgroundTransparency = 0 })
+        Tween(MinLine, 0.15, nil, nil, { BackgroundColor3 = Theme.Text })
+    end)
+    MinBtn.MouseLeave:Connect(function()
+        minHovered = false
+        Tween(MinBtn, 0.15, nil, nil, { BackgroundTransparency = 1 })
+        Tween(MinLine, 0.15, nil, nil, { BackgroundColor3 = Theme.Dim })
+    end)
+    MinBtn.MouseButton1Click:Connect(function() Window:SetVisible(false) end)
+
+    -- drag by the title bar (double-click resets position to center)
+    local dragging, dragStart, startPos = false, nil, nil
+    local lastClick = 0
+    TitleBar.InputBegan:Connect(function(input)
+        if minHovered then return end
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dismissDropdown()
+            local now = os.clock()
+            if now - lastClick < 0.3 then
+                dragging = false
+                Window:ResetPosition()
+                lastClick = 0
+                return
+            end
+            lastClick = now
+            dragging, dragStart, startPos = true, input.Position, Frame.Position
+        end
+    end)
+    TrackConn(UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local d = input.Position - dragStart
+            local newPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, math.max(16, startPos.Y.Offset + d.Y))
+            Frame.Position = newPos
+            restPos = newPos
+        end
+    end))
+    TrackConn(UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end))
+
+    ---------------- sidebar ----------------
+    local Sidebar = New("Frame", {
+        Position = UDim2.fromOffset(0, 46), Size = UDim2.new(0, 132, 1, -46),
+        BackgroundTransparency = 1, Parent = Frame,
+    })
+    -- 1px right divider
+    New("Frame", {
+        AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.new(0, 1, 1, 0),
+        BackgroundColor3 = Theme.Divider, BorderSizePixel = 0, Parent = Sidebar,
+    })
+    local Glide = New("Frame", {
+        Position = UDim2.fromOffset(8, 10), Size = UDim2.new(1, -16, 0, 32),
+        BackgroundColor3 = Theme.Control, BorderSizePixel = 0, Visible = false, Parent = Sidebar,
+    }, { Corner(8) })
+    New("Frame", {
+        AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.fromScale(0, 0.5), Size = UDim2.fromOffset(2, 12),
+        BackgroundColor3 = Theme.Text, BorderSizePixel = 0, Parent = Glide,
+    }, { Corner(1) })
+    local TabList = New("ScrollingFrame", {
+        Position = UDim2.fromOffset(8, 10), Size = UDim2.new(1, -16, 1, -20),
+        BackgroundTransparency = 1, BorderSizePixel = 0,
+        ScrollBarThickness = 0,
+        CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        Parent = Sidebar,
+    }, {
+        New("UIListLayout", { Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder }),
+    })
+    local PageHolder = New("Frame", {
+        Position = UDim2.fromOffset(133, 46), Size = UDim2.new(1, -133, 1, -46),
+        BackgroundTransparency = 1, ClipsDescendants = true, Parent = Frame,
+    })
+
+    ---------------- window methods ----------------
+    function Window:SetVisible(on)
+        if on == Window.Visible then return end
+        Window.Visible = on
+        dismissDropdown()
+        local island = NexusLib.ActiveIsland
+        if island then island:SetHiddenLabel(not on) end
+        if on then
+            Frame.Visible = true
+            Tween(Frame, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+                Position = restPos, Size = size, BackgroundTransparency = Theme.SurfaceAlpha,
+            })
+            if island then island:SetStatus(Window.LastStatus or "Active") end
+            NexusLib:Notify({ Title = "Nexus", Content = "Menu shown" })
+        else
+            local hideTarget = UDim2.new(restPos.X.Scale, restPos.X.Offset, 0, ISLAND_TOP + 2)
+            Tween(Frame, 0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.In, {
+                Position = hideTarget,
+                Size = UDim2.fromOffset(size.X.Offset * 0.2, size.Y.Offset * 0.1),
+                BackgroundTransparency = 0.98,
+            })
+            task.delay(0.3, function()
+                if island and not Window.Visible then
+                    island:Gulp()
+                    island:SetStatus("Hidden")
+                end
+            end)
+            task.delay(0.35, function()
+                if not Window.Visible then Frame.Visible = false end
+            end)
+            NexusLib:Notify({ Title = "Nexus", Content = "Hidden, press " .. NexusLib.ToggleKey.Name .. " to show" })
+        end
+    end
+    function Window:ToggleVisible()
+        Window:SetVisible(not Window.Visible)
+    end
+    function Window:ResetPosition()
+        restPos = UDim2.new(0.5, 0, 0, homeY + (Window.Pushed and (ISLAND_OPEN_H - ISLAND_H) or 0))
+        Tween(Frame, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Position = restPos })
+    end
+    function Window:PushDown(pushed)
+        if pushed == Window.Pushed then return end
+        Window.Pushed = pushed
+        dismissDropdown()
+        local dy = pushed and (ISLAND_OPEN_H - ISLAND_H) or -(ISLAND_OPEN_H - ISLAND_H)
+        restPos = UDim2.new(restPos.X.Scale, restPos.X.Offset, restPos.Y.Scale, restPos.Y.Offset + dy)
+        if Window.Visible then
+            Tween(Frame, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+                Position = restPos,
+            })
+        end
+    end
+    function Window:Notify(cfg)
+        return NexusLib:Notify(cfg)
+    end
+    function Window:Destroy()
+        Gui:Destroy()
+    end
+
+    TrackConn(UserInputService.InputBegan:Connect(function(input, processed)
+        if Gui.Parent and not processed and not NexusLib.Listening and input.KeyCode == NexusLib.ToggleKey then
+            Window:ToggleVisible()
+        end
+    end))
+
+    ---------------- tabs ----------------
+    function Window:CreateTab(name)
+        local index = #Window.Tabs + 1
+
+        local TabButton = New("TextButton", {
+            Size = UDim2.new(1, 0, 0, 32), BackgroundTransparency = 1, Text = "",
+            AutoButtonColor = false, LayoutOrder = index, ZIndex = 2, Parent = TabList,
+        })
+        local text = Label(TabButton, {
+            Position = UDim2.fromOffset(12, 0), Size = UDim2.new(1, -16, 1, 0), Text = name,
+            Font = Enum.Font.GothamMedium, TextSize = 12, TextColor3 = Theme.Dim, ZIndex = 2,
+        })
+        TabButton.MouseEnter:Connect(function() Tween(text, 0.15, nil, nil, { TextColor3 = Theme.Text }) end)
+        TabButton.MouseLeave:Connect(function()
+            if Window.CurrentTab and Window.CurrentTab.Index ~= index then
+                Tween(text, 0.15, nil, nil, { TextColor3 = Theme.Dim })
+            end
+        end)
+
+        local Page = New("ScrollingFrame", {
+            Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BorderSizePixel = 0,
+            ScrollBarThickness = 2, ScrollBarImageColor3 = Theme.White, ScrollBarImageTransparency = 0.85,
+            CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            Visible = false, Parent = PageHolder,
+        }, {
+            New("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }),
+            New("UIPadding", {
+                PaddingTop = UDim.new(0, 10), PaddingLeft = UDim.new(0, 14),
+                PaddingRight = UDim.new(0, 14), PaddingBottom = UDim.new(0, 16),
+            }),
+        })
+        Page:GetPropertyChangedSignal("CanvasPosition"):Connect(dismissDropdown)
+
+        local Tab = { Button = TabButton, Label = text, Page = Page, Index = index }
+        local order = 0
+        local sectionCount = 0
+        local function nextOrder()
+            order = order + 1
+            return order
+        end
+
+        function Tab:Select()
+            local prev = Window.CurrentTab
+            if prev == Tab then return end
+            dismissDropdown()
+            for _, other in ipairs(Window.Tabs) do
+                other.Page.Visible = false
+                Tween(other.Label, 0.2, nil, nil, { TextColor3 = Theme.Dim })
+            end
+            local y = 10 + (index - 1) * 34
+            if Glide.Visible then
+                Tween(Glide, 0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Position = UDim2.fromOffset(8, y) })
+            else
+                Glide.Position = UDim2.fromOffset(8, y)
+                Glide.Visible = true
+            end
+            Tween(text, 0.2, nil, nil, { TextColor3 = Theme.Text })
+            local dir = (prev and prev.Index > index) and -1 or 1
+            Page.Position = UDim2.fromOffset(18 * dir, 0)
+            Page.Visible = true
+            Tween(Page, 0.36, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Position = UDim2.fromOffset(0, 0) })
+            Window.CurrentTab = Tab
+        end
+        TabButton.MouseButton1Click:Connect(function() Tab:Select() end)
+
+        -- one row: title (+ description) on the left, control on the right
+        local function Item(cfg, rightWidth)
+            local hasDesc = cfg.Description ~= nil and cfg.Description ~= ""
+            local h = hasDesc and 46 or 42
+            local row = New("Frame", {
+                Size = UDim2.new(1, 0, 0, h),
+                BackgroundColor3 = Theme.Row,
+                BorderSizePixel = 0,
+                LayoutOrder = nextOrder(),
+                Parent = Page,
+            }, { Corner(9) })
+            local w = -(24 + (rightWidth or 110))
+            Label(row, {
+                Position = UDim2.fromOffset(12, hasDesc and 8 or 0),
+                Size = UDim2.new(1, w, 0, hasDesc and 15 or h),
+                Font = Enum.Font.GothamMedium,
+                TextSize = 12,
+                Text = cfg.Name or "Item",
+                TextTruncate = Enum.TextTruncate.AtEnd,
+            })
+            if hasDesc then
+                Label(row, {
+                    Position = UDim2.fromOffset(12, 24),
+                    Size = UDim2.new(1, w, 0, 14),
+                    Font = Enum.Font.Gotham,
+                    TextSize = 10,
+                    TextColor3 = Theme.Dim,
+                    Text = cfg.Description,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                })
+            end
+            local right = New("Frame", {
+                AnchorPoint = Vector2.new(1, 0.5),
+                Position = UDim2.new(1, -10, 0.5, 0),
+                Size = UDim2.fromOffset(rightWidth or 110, 28),
+                BackgroundTransparency = 1,
+                Parent = row,
+            })
+            return row, right
+        end
+
+        local function Hover(row, hit)
+            hit.MouseEnter:Connect(function() Tween(row, 0.15, nil, nil, { BackgroundColor3 = Theme.RowHover }) end)
+            hit.MouseLeave:Connect(function() Tween(row, 0.15, nil, nil, { BackgroundColor3 = Theme.Row }) end)
+        end
+
+        function Tab:CreateSection(title)
+            sectionCount = sectionCount + 1
+            local topGap = sectionCount > 1 and 8 or 0
+            local wrap = New("Frame", {
+                Size = UDim2.new(1, 0, 0, 20 + topGap),
+                BackgroundTransparency = 1,
+                LayoutOrder = nextOrder(),
+                Parent = Page,
+            })
+            Label(wrap, {
+                Position = UDim2.fromOffset(2, topGap + 2),
+                Size = UDim2.new(1, -4, 0, 16),
+                Text = string.upper(title),
+                TextSize = 10,
+                Font = Enum.Font.GothamMedium,
+                TextColor3 = Theme.Faint,
+            })
+
+            local sec = { _instance = wrap }
+            function sec:CreateToggle(...) return Tab:CreateToggle(...) end
+            function sec:CreateSlider(...) return Tab:CreateSlider(...) end
+            function sec:CreateButton(...) return Tab:CreateButton(...) end
+            function sec:CreateInput(...) return Tab:CreateInput(...) end
+            function sec:CreateTextbox(...) return Tab:CreateTextbox(...) end
+            function sec:CreateDropdown(...) return Tab:CreateDropdown(...) end
+            function sec:CreateMultiDropdown(...) return Tab:CreateMultiDropdown(...) end
+            function sec:CreateKeybind(...) return Tab:CreateKeybind(...) end
+            function sec:CreateLabel(...) return Tab:CreateLabel(...) end
+            function sec:CreateHeader(...) return Tab:CreateHeader(...) end
+            function sec:CreateFeaturedCard(...) return Tab:CreateFeaturedCard(...) end
+            function sec:CreateStatRow(...) return Tab:CreateStatRow(...) end
+            function sec:CreateActionRow(...) return Tab:CreateActionRow(...) end
+            function sec:CreateCardGroup(...) return Tab:CreateCardGroup(...) end
+            function sec:CreateBlock(...) return Tab:CreateBlock(...) end
+            return sec
+        end
+
+        function Tab:CreateToggle(cfg)
+            local state = cfg.Default or false
+            local row, right = Item(cfg, 32)
+            local track = New("Frame", {
+                AnchorPoint = Vector2.new(1, 0.5),
+                Position = UDim2.new(1, 0, 0.5, 0),
+                Size = UDim2.fromOffset(32, 18),
+                BackgroundColor3 = state and Theme.Text or Theme.ToggleOff,
+                BorderSizePixel = 0,
+                Parent = right,
+            }, { Corner(9) })
+            local knob = New("Frame", {
+                AnchorPoint = Vector2.new(0, 0.5),
+                Position = state and UDim2.new(0, 16, 0.5, 0) or UDim2.new(0, 2, 0.5, 0),
+                Size = UDim2.fromOffset(14, 14),
+                BackgroundColor3 = state and Theme.Surface or Theme.Knob,
+                BorderSizePixel = 0,
+                Parent = track,
+            }, { Corner(7) })
+
+            local Toggle = {}
+            function Toggle:Set(value, silent)
+                state = value
+                Tween(track, 0.22, nil, nil, {
+                    BackgroundColor3 = state and Theme.Text or Theme.ToggleOff,
+                })
+                Tween(knob, 0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+                    Position = state and UDim2.new(0, 16, 0.5, 0) or UDim2.new(0, 2, 0.5, 0),
+                    BackgroundColor3 = state and Theme.Surface or Theme.Knob,
+                })
+                if not silent and cfg.Callback then task.spawn(cfg.Callback, state) end
+            end
+            function Toggle:Get() return state end
+
+            local hit = New("TextButton", {
+                Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, AutoButtonColor = false, Text = "", ZIndex = 3, Parent = row,
+            })
+            hit.MouseButton1Click:Connect(function() Toggle:Set(not state) end)
+            Hover(row, hit)
+            return Toggle
+        end
+
+        function Tab:CreateSlider(cfg)
+            local min, max, step = cfg.Min or 0, cfg.Max or 100, cfg.Step or 1
+            local value = math.clamp(cfg.Default or min, min, max)
+            local _, right = Item(cfg, 180)
+
+            local valueLabel = Label(right, {
+                Size = UDim2.new(0, 28, 1, 0), TextXAlignment = Enum.TextXAlignment.Right,
+                Font = Enum.Font.Code, TextSize = 10, TextColor3 = Theme.Dim, Text = tostring(value),
+            })
+            local hit = New("TextButton", {
+                Position = UDim2.fromOffset(38, 0), Size = UDim2.new(1, -38, 1, 0),
+                BackgroundTransparency = 1, Text = "", AutoButtonColor = false, Parent = right,
+            })
+            local track = New("Frame", {
+                AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.fromScale(0, 0.5), Size = UDim2.new(1, 0, 0, 3),
+                BackgroundColor3 = Theme.ToggleOff, BorderSizePixel = 0, Parent = hit,
+            }, { Corner(2) })
+            local fill = New("Frame", {
+                Size = UDim2.fromScale((value - min) / (max - min), 1), BackgroundColor3 = Theme.Text,
+                BorderSizePixel = 0, Parent = track,
+            }, { Corner(2) })
+            local knob = New("Frame", {
+                AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale((value - min) / (max - min), 0.5),
+                Size = UDim2.fromOffset(12, 12), BackgroundColor3 = Theme.White, BorderSizePixel = 0, Parent = track,
+            }, { Corner(6) })
+
+            local Slider = {}
+            function Slider:Set(v, silent)
+                v = math.clamp(math.floor((v - min) / step + 0.5) * step + min, min, max)
+                value = v
+                local p = (v - min) / (max - min)
+                Tween(fill, 0.08, nil, nil, { Size = UDim2.fromScale(p, 1) })
+                Tween(knob, 0.08, nil, nil, { Position = UDim2.fromScale(p, 0.5) })
+                valueLabel.Text = tostring(v)
+                if not silent and cfg.Callback then task.spawn(cfg.Callback, v) end
+            end
+            function Slider:Get() return value end
+
+            local sliding = false
+            local function fromX(x)
+                local p = math.clamp((x - track.AbsolutePosition.X) / math.max(1, track.AbsoluteSize.X), 0, 1)
+                Slider:Set(min + (max - min) * p)
+            end
+            hit.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    sliding = true
+                    Tween(knob, 0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(15, 15) })
+                    fromX(input.Position.X)
+                end
+            end)
+            TrackConn(UserInputService.InputChanged:Connect(function(input)
+                if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                    fromX(input.Position.X)
+                end
+            end))
+            TrackConn(UserInputService.InputEnded:Connect(function(input)
+                if sliding and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+                    sliding = false
+                    Tween(knob, 0.2, nil, nil, { Size = UDim2.fromOffset(12, 12) })
+                end
+            end))
+            return Slider
+        end
+
+        function Tab:CreateButton(cfg)
+            cfg = cfg or {}
+            local btnText = cfg.Text or "Run"
+            local titleText = cfg.Name or cfg.Title or cfg.Text or "Button"
+            local w = math.max(54, #btnText * 7 + 32)
+            local row, right = Item({ Name = titleText, Description = cfg.Description }, w)
+            local b = Button(right, btnText, {
+                AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.fromOffset(w, 28),
+            }, false)
+            local function fire()
+                if cfg.Callback then task.spawn(cfg.Callback) end
+            end
+            b.MouseButton1Click:Connect(fire)
+            local hit = New("TextButton", {
+                Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, AutoButtonColor = false, Text = "", ZIndex = 2, Parent = row,
+            })
+            hit.MouseButton1Click:Connect(fire)
+            Hover(row, hit)
+            return {
+                _frame = row,
+                Button = b,
+                Set = function(self, t) b.Text = tostring(t) end,
+            }
+        end
+
+        function Tab:CreateTextbox(cfg)
+            return Tab:CreateInput(cfg)
+        end
+
+        function Tab:CreateInput(cfg)
+            cfg = cfg or {}
+            local _, right = Item(cfg, 150)
+            local box = New("TextBox", {
+                Size = UDim2.fromScale(1, 1),
+                BackgroundColor3 = Theme.Control,
+                BorderSizePixel = 0,
+                Text = cfg.Default or "",
+                PlaceholderText = cfg.Placeholder or "Enter value...",
+                PlaceholderColor3 = Theme.Faint,
+                Font = Enum.Font.Gotham,
+                TextSize = 11,
+                TextColor3 = Theme.Text,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ClearTextOnFocus = false,
+                Parent = right,
+            }, { Corner(7), New("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) }) })
+            local stroke = Rim(1)
+            stroke.Parent = box
+            box.Focused:Connect(function() Tween(stroke, 0.15, nil, nil, { Transparency = Theme.StrokeHover }) end)
+            box.FocusLost:Connect(function(enter)
+                Tween(stroke, 0.15, nil, nil, { Transparency = 1 })
+                if cfg.Callback then
+                    task.spawn(cfg.Callback, box.Text, enter)
+                    if enter and cfg.ClearOnSubmit then box.Text = "" end
+                end
+            end)
+            local Input = { _box = box }
+            function Input:Set(v) box.Text = tostring(v) end
+            function Input:Get() return box.Text end
+            return Input
+        end
+
+        function Tab:CreateDropdown(cfg)
+            local options = cfg.Options or {}
+            local value = cfg.Default or options[1]
+            local _, right = Item(cfg, 106)
+            local field = Button(right, "", { Size = UDim2.fromScale(1, 1) }, false)
+            local valueLabel = Label(field, {
+                Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -28, 1, 0),
+                Font = Enum.Font.GothamMedium, TextSize = 11, Text = tostring(value),
+            })
+            local arrow = Chevron(field, {
+                AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
+            }, Theme.Dim)
+
+            local menu, closeConn
+            local function close()
+                if closeOpenDropdown == close then closeOpenDropdown = nil end
+                if closeConn then closeConn:Disconnect() closeConn = nil end
+                arrow:SetOpen(false, Theme.Text, Theme.Dim)
+                if menu then
+                    local m = menu
+                    menu = nil
+                    Tween(m, 0.18, nil, nil, { Size = UDim2.fromOffset(m.Size.X.Offset, 0) })
+                    task.delay(0.2, function() pcall(function() m:Destroy() end) end)
+                end
+            end
+            local function set(v)
+                value = v
+                valueLabel.Text = tostring(v)
+                if cfg.Callback then task.spawn(cfg.Callback, v) end
+            end
+
+            field.MouseButton1Click:Connect(function()
+                if menu then close() return end
+                dismissDropdown()
+                closeOpenDropdown = close
+                arrow:SetOpen(true, Theme.Text, Theme.Dim)
+                local width = math.max(120, field.AbsoluteSize.X)
+                local height = #options * 28 + 8
+                local ox = field.AbsolutePosition.X - Gui.AbsolutePosition.X
+                local oy = field.AbsolutePosition.Y - Gui.AbsolutePosition.Y
+                menu = New("Frame", {
+                    Position = UDim2.fromOffset(ox + field.AbsoluteSize.X - width, oy + field.AbsoluteSize.Y + 6),
+                    Size = UDim2.fromOffset(width, 0),
+                    BackgroundColor3 = Theme.Menu,
+                    BorderSizePixel = 0,
+                    ClipsDescendants = true,
+                    ZIndex = 50,
+                    Parent = Gui,
+                }, {
+                    Corner(9),
+                    Rim(Theme.StrokeAlpha),
+                    New("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }),
+                    New("UIListLayout", { Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder }),
+                })
+                Tween(menu, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(width, height) })
+                for i, option in ipairs(options) do
+                    local selected = option == value
+                    local item = New("TextButton", {
+                        Size = UDim2.new(1, 0, 0, 27),
+                        BackgroundColor3 = Theme.Control,
+                        BackgroundTransparency = selected and 0 or 1,
+                        BorderSizePixel = 0,
+                        AutoButtonColor = false,
+                        Text = tostring(option),
+                        Font = Enum.Font.GothamMedium,
+                        TextSize = 11,
+                        TextColor3 = selected and Theme.Text or Theme.Dim,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        LayoutOrder = i,
+                        ZIndex = 51,
+                        Parent = menu,
+                    }, { Corner(6), New("UIPadding", { PaddingLeft = UDim.new(0, 10) }) })
+                    item.MouseEnter:Connect(function()
+                        Tween(item, 0.1, nil, nil, { BackgroundTransparency = 0, TextColor3 = Theme.Text })
+                    end)
+                    item.MouseLeave:Connect(function()
+                        Tween(item, 0.1, nil, nil, {
+                            BackgroundTransparency = selected and 0 or 1,
+                            TextColor3 = selected and Theme.Text or Theme.Dim,
+                        })
+                    end)
+                    item.MouseButton1Click:Connect(function()
+                        set(option)
+                        close()
+                    end)
+                end
+                closeConn = TrackConn(UserInputService.InputBegan:Connect(function(input)
+                    if menu and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+                        local pos = input.Position
+                        local a, s = menu.AbsolutePosition, menu.AbsoluteSize
+                        local f, fs = field.AbsolutePosition, field.AbsoluteSize
+                        local inMenu = pos.X >= a.X and pos.X <= a.X + s.X and pos.Y >= a.Y and pos.Y <= a.Y + s.Y
+                        local inField = pos.X >= f.X and pos.X <= f.X + fs.X and pos.Y >= f.Y and pos.Y <= f.Y + fs.Y
+                        if not inMenu and not inField then
+                            task.defer(close)
+                        end
+                    end
+                end))
+            end)
+
+            local Dropdown = {}
+            function Dropdown:Set(v) set(v) end
+            function Dropdown:Get() return value end
+            function Dropdown:Refresh(newOptions)
+                options = newOptions or {}
+                if not table.find(options, value) then
+                    set(options[1] or "")
+                end
+            end
+            return Dropdown
+        end
+
+        function Tab:CreateMultiDropdown(cfg)
+            cfg = cfg or {}
+            local options = cfg.Options or {}
+            local selectedMap = {}
+            if type(cfg.Default) == "table" then
+                for k, v in pairs(cfg.Default) do
+                    if type(k) == "number" then selectedMap[v] = true
+                    elseif v == true then selectedMap[k] = true end
+                end
+            end
+
+            local _, right = Item(cfg, 116)
+            local field = Button(right, "", { Size = UDim2.fromScale(1, 1) }, false)
+            local valueLabel = Label(field, {
+                Position = UDim2.fromOffset(10, 0), Size = UDim2.new(1, -28, 1, 0),
+                Font = Enum.Font.GothamMedium, TextSize = 11, Text = "0 selected",
+            })
+            local arrow = Chevron(field, {
+                AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
+            }, Theme.Dim)
+
+            local function updateCount()
+                local count = 0
+                for _, opt in ipairs(options) do
+                    if selectedMap[opt] then count = count + 1 end
+                end
+                valueLabel.Text = count == 0 and "None" or (count .. " selected")
+            end
+            updateCount()
+
+            local menu, closeConn
+            local function close()
+                if closeOpenDropdown == close then closeOpenDropdown = nil end
+                if closeConn then closeConn:Disconnect() closeConn = nil end
+                arrow:SetOpen(false, Theme.Text, Theme.Dim)
+                if menu then
+                    local m = menu
+                    menu = nil
+                    Tween(m, 0.18, nil, nil, { Size = UDim2.fromOffset(m.Size.X.Offset, 0) })
+                    task.delay(0.2, function() pcall(function() m:Destroy() end) end)
+                end
+            end
+
+            field.MouseButton1Click:Connect(function()
+                if menu then close() return end
+                dismissDropdown()
+                closeOpenDropdown = close
+                arrow:SetOpen(true, Theme.Text, Theme.Dim)
+                local width = math.max(130, field.AbsoluteSize.X)
+                local height = #options * 28 + 8
+                local ox = field.AbsolutePosition.X - Gui.AbsolutePosition.X
+                local oy = field.AbsolutePosition.Y - Gui.AbsolutePosition.Y
+                menu = New("Frame", {
+                    Position = UDim2.fromOffset(ox + field.AbsoluteSize.X - width, oy + field.AbsoluteSize.Y + 6),
+                    Size = UDim2.fromOffset(width, 0),
+                    BackgroundColor3 = Theme.Menu,
+                    BorderSizePixel = 0,
+                    ClipsDescendants = true,
+                    ZIndex = 50,
+                    Parent = Gui,
+                }, {
+                    Corner(9),
+                    Rim(Theme.StrokeAlpha),
+                    New("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }),
+                    New("UIListLayout", { Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder }),
+                })
+                Tween(menu, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(width, height) })
+
+                for i, option in ipairs(options) do
+                    local isChecked = selectedMap[option] == true
+                    local item = New("TextButton", {
+                        Size = UDim2.new(1, 0, 0, 27),
+                        BackgroundColor3 = Theme.Control,
+                        BackgroundTransparency = isChecked and 0 or 1,
+                        BorderSizePixel = 0,
+                        AutoButtonColor = false,
+                        Text = (isChecked and "[x]  " or "[ ]  ") .. tostring(option),
+                        Font = Enum.Font.GothamMedium,
+                        TextSize = 11,
+                        TextColor3 = isChecked and Theme.Text or Theme.Dim,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        LayoutOrder = i,
+                        ZIndex = 51,
+                        Parent = menu,
+                    }, { Corner(6), New("UIPadding", { PaddingLeft = UDim.new(0, 8) }) })
+
+                    item.MouseButton1Click:Connect(function()
+                        selectedMap[option] = not selectedMap[option]
+                        local checked = selectedMap[option] == true
+                        item.Text = (checked and "[x]  " or "[ ]  ") .. tostring(option)
+                        item.TextColor3 = checked and Theme.Text or Theme.Dim
+                        item.BackgroundTransparency = checked and 0 or 1
+                        updateCount()
+                        if cfg.Callback then task.spawn(cfg.Callback, selectedMap) end
+                    end)
+                end
+
+                closeConn = TrackConn(UserInputService.InputBegan:Connect(function(input)
+                    if menu and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+                        local pos = input.Position
+                        local a, s = menu.AbsolutePosition, menu.AbsoluteSize
+                        local f, fs = field.AbsolutePosition, field.AbsoluteSize
+                        local inMenu = pos.X >= a.X and pos.X <= a.X + s.X and pos.Y >= a.Y and pos.Y <= a.Y + s.Y
+                        local inField = pos.X >= f.X and pos.X <= f.X + fs.X and pos.Y >= f.Y and pos.Y <= f.Y + fs.Y
+                        if not inMenu and not inField then
+                            task.defer(close)
+                        end
+                    end
+                end))
+            end)
+
+            local MultiDropdown = {}
+            function MultiDropdown:Set(tbl)
+                selectedMap = {}
+                if type(tbl) == "table" then
+                    for k, v in pairs(tbl) do
+                        if type(k) == "number" then selectedMap[v] = true
+                        elseif v == true then selectedMap[k] = true end
+                    end
+                end
+                updateCount()
+                if cfg.Callback then task.spawn(cfg.Callback, selectedMap) end
+            end
+            function MultiDropdown:Get() return selectedMap end
+            function MultiDropdown:Refresh(newOptions)
+                options = newOptions or {}
+                local newMap = {}
+                for _, opt in ipairs(options) do
+                    if selectedMap[opt] then newMap[opt] = true end
+                end
+                selectedMap = newMap
+                updateCount()
+            end
+            return MultiDropdown
+        end
+
+        function Tab:CreateLabel(textOrCfg)
+            local text = type(textOrCfg) == "table" and (textOrCfg.Text or textOrCfg.Name or "") or tostring(textOrCfg)
+            local row = New("Frame", {
+                Size = UDim2.new(1, 0, 0, 28),
+                BackgroundTransparency = 1,
+                LayoutOrder = nextOrder(),
+                Parent = Page,
+            })
+            local lbl = Label(row, {
+                Position = UDim2.fromOffset(12, 0),
+                Size = UDim2.new(1, -24, 1, 0),
+                Font = Enum.Font.GothamMedium,
+                TextSize = 11,
+                TextColor3 = Theme.Dim,
+                Text = text,
+            })
+            return {
+                _label = lbl,
+                _frame = row,
+                Set = function(self, newText)
+                    lbl.Text = tostring(newText)
+                end,
+            }
+        end
+
+        function Tab:CreateHeader(cfg)
+            cfg = cfg or {}
+            local hasSub = cfg.Subtitle ~= nil and cfg.Subtitle ~= ""
+            local h = hasSub and 38 or 28
+            local wrap = New("Frame", {
+                Size = UDim2.new(1, 0, 0, h),
+                BackgroundTransparency = 1,
+                LayoutOrder = nextOrder(),
+                Parent = Page,
+            })
+            Label(wrap, {
+                Position = UDim2.fromOffset(2, 2),
+                Size = UDim2.new(1, -4, 0, 16),
+                Font = Enum.Font.GothamBold,
+                TextSize = 13,
+                TextColor3 = Theme.Text,
+                Text = cfg.Title or "Header",
+            })
+            if hasSub then
+                Label(wrap, {
+                    Position = UDim2.fromOffset(2, 20),
+                    Size = UDim2.new(1, -4, 0, 14),
+                    Font = Enum.Font.Gotham,
+                    TextSize = 10,
+                    TextColor3 = Theme.Dim,
+                    Text = cfg.Subtitle,
+                })
+            end
+            return wrap
+        end
+
+        function Tab:CreateFeaturedCard(cfg)
+            cfg = cfg or {}
+            local hasDesc = cfg.Description ~= nil and cfg.Description ~= ""
+            local h = hasDesc and 84 or 56
+            local card = New("Frame", {
+                Size = UDim2.new(1, 0, 0, h),
+                BackgroundColor3 = Theme.Row,
+                BorderSizePixel = 0,
+                LayoutOrder = nextOrder(),
+                Parent = Page,
+            }, { Corner(9), Rim(Theme.StrokeAlpha) })
+
+            Label(card, {
+                Position = UDim2.fromOffset(12, 8),
+                Size = UDim2.new(1, -110, 0, 14),
+                Font = Enum.Font.GothamBold,
+                TextSize = 10,
+                TextColor3 = Theme.Faint,
+                Text = string.upper(cfg.Tag or "FEATURED"),
+            })
+            Label(card, {
+                Position = UDim2.fromOffset(12, 24),
+                Size = UDim2.new(1, -110, 0, 18),
+                Font = Enum.Font.GothamBold,
+                TextSize = 12,
+                TextColor3 = Theme.Text,
+                Text = cfg.Title or "",
+            })
+            if hasDesc then
+                Label(card, {
+                    Position = UDim2.fromOffset(12, 44),
+                    Size = UDim2.new(1, -110, 0, 32),
+                    Font = Enum.Font.Gotham,
+                    TextSize = 10,
+                    TextColor3 = Theme.Dim,
+                    TextWrapped = true,
+                    Text = cfg.Description,
+                })
+            end
+
+            if cfg.ButtonText then
+                local b = Button(card, cfg.ButtonText, {
+                    AnchorPoint = Vector2.new(1, 0.5),
+                    Position = UDim2.new(1, -10, 0.5, 0),
+                    Size = UDim2.fromOffset(math.max(68, #cfg.ButtonText * 7 + 24), 28),
+                }, false)
+                b.MouseButton1Click:Connect(function()
+                    if cfg.Callback then task.spawn(cfg.Callback) end
+                end)
+            end
+            return card
+        end
+
+        function Tab:CreateStatRow(stats)
+            stats = stats or {}
+            local count = #stats
+            if count == 0 then return { _frame = nil } end
+            local row = New("Frame", {
+                Size = UDim2.new(1, 0, 0, 48),
+                BackgroundTransparency = 1,
+                LayoutOrder = nextOrder(),
+                Parent = Page,
+            }, {
+                New("UIListLayout", {
+                    FillDirection = Enum.FillDirection.Horizontal,
+                    Padding = UDim.new(0, 6),
+                    SortOrder = Enum.SortOrder.LayoutOrder,
+                })
+            })
+
+            local valLabels = {}
+            for i, st in ipairs(stats) do
+                local cell = New("Frame", {
+                    Name = "Stat_" .. i,
+                    Size = UDim2.new(1 / count, -math.floor((count - 1) * 6 / count), 1, 0),
+                    BackgroundColor3 = Theme.Row,
+                    BorderSizePixel = 0,
+                    LayoutOrder = i,
+                    Parent = row,
+                }, { Corner(8), Rim(Theme.StrokeAlpha) })
+
+                Label(cell, {
+                    Position = UDim2.fromOffset(8, 6),
+                    Size = UDim2.new(1, -16, 0, 12),
+                    Font = Enum.Font.GothamMedium,
+                    TextSize = 9,
+                    TextColor3 = Theme.Dim,
+                    Text = string.upper(st.Title or "STAT"),
+                })
+                local vl = Label(cell, {
+                    Name = "ValueLabel",
+                    Position = UDim2.fromOffset(8, 20),
+                    Size = UDim2.new(1, -16, 0, 22),
+                    Font = Enum.Font.GothamBold,
+                    TextSize = 18,
+                    TextColor3 = st.Color or Theme.Text,
+                    Text = tostring(st.Value or "-"),
+                })
+                valLabels[i] = vl
+                if st.Title then valLabels[st.Title] = vl end
+            end
+
+            local StatRowObj = { _frame = row }
+            function StatRowObj:Update(key, newVal)
+                local target = valLabels[key]
+                if target then target.Text = tostring(newVal) end
+            end
+            return StatRowObj
+        end
+
+        function Tab:CreateActionRow(...)
+            local buttons = { ... }
+            local n = #buttons
+            if n == 0 then return end
+            local row = New("Frame", {
+                Size = UDim2.new(1, 0, 0, 36),
+                BackgroundTransparency = 1,
+                LayoutOrder = nextOrder(),
+                Parent = Page,
+            }, {
+                New("UIListLayout", {
+                    FillDirection = Enum.FillDirection.Horizontal,
+                    Padding = UDim.new(0, 6),
+                    SortOrder = Enum.SortOrder.LayoutOrder,
+                })
+            })
+            for i, bcfg in ipairs(buttons) do
+                local b = Button(row, bcfg.Text or bcfg.Name or "Action", {
+                    Size = UDim2.new(1 / n, -math.floor((n - 1) * 6 / n), 1, 0),
+                    LayoutOrder = i,
+                }, false)
+                b.MouseButton1Click:Connect(function()
+                    if bcfg.Callback then task.spawn(bcfg.Callback) end
+                end)
+            end
+            return row
+        end
+
+        function Tab:CreateCardGroup(title)
+            return Tab:CreateSection(title)
+        end
+
+        function Tab:CreateBlock(title)
+            return Tab:CreateSection(title)
+        end
+
+        function Tab:CreateKeybind(cfg)
+            local key = cfg.Default or Enum.KeyCode.RightShift
+            local _, right = Item(cfg, 96)
+            local field = Button(right, key.Name, { Size = UDim2.fromScale(1, 1), Font = Enum.Font.Code, TextSize = 10 }, false)
+            local stroke = Rim(1)
+            stroke.Parent = field
+            local blink
+            field.MouseButton1Click:Connect(function()
+                if NexusLib.Listening then return end
+                NexusLib.Listening = true
+                field.Text = "..."
+                Tween(stroke, 0.15, nil, nil, { Transparency = Theme.StrokeHover })
+                blink = TweenService:Create(field, TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { TextTransparency = 0.5 })
+                blink:Play()
+                local conn
+                conn = TrackConn(UserInputService.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.Keyboard then
+                        conn:Disconnect()
+                        blink:Cancel()
+                        Tween(stroke, 0.15, nil, nil, { Transparency = 1 })
+                        field.TextTransparency = 0
+                        key = input.KeyCode
+                        field.Text = key.Name
+                        task.defer(function() NexusLib.Listening = false end)
+                        if cfg.Callback then task.spawn(cfg.Callback, key) end
+                    end
+                end))
+            end)
+            local Keybind = {}
+            function Keybind:Get() return key end
+            return Keybind
+        end
+
+        table.insert(Window.Tabs, Tab)
+        if index == 1 then
+            Tab:Select()
+        end
+        return Tab
+    end
+
+    return Window
 end
 
-function Element040:SetUserProfile(profile: { Name: string?, Role: string?, Avatar: string? })
-	if profile.Name and self.MeName then
-		self.MeName.Text = profile.Name
-	end
-	if profile.Role and self.MeRole then
-		self.MeRole.Text = profile.Role
-	end
-	if profile.Avatar and self.AvatarImage then
-		self.AvatarImage.Image = profile.Avatar
-		self.AvatarImage.Visible = true
-	end
+--------------------------------------------------------------------------
+-- DEMO (matches the Figma Make UI 1:1)
+--------------------------------------------------------------------------
+function NexusLib:Demo()
+    local Island
+    NexusLib:PlayInkIntro({
+        OnPill = function()
+            Island = NexusLib:CreateDynamicIsland({ Title = "Nexus", Status = "Active" })
+        end,
+        OnWindow = function()
+            if not Island then
+                Island = NexusLib:CreateDynamicIsland({ Title = "Nexus", Status = "Active" })
+            end
+            local Window = NexusLib:CreateWindow({ Title = "Nexus Hub", SubTitle = "Universal" })
+            local state = {
+                opt1 = true, opt2 = false, opt3 = true,
+            }
+            local function refreshStatus()
+                local count = 0
+                for _, v in pairs(state) do if v then count = count + 1 end end
+                local s = count .. " active"
+                Window.LastStatus = s
+                if Window.Visible and Island then Island:SetStatus(s) end
+            end
+            Window.LastStatus = "Active"
+            local function note(title, on)
+                NexusLib:Notify({ Title = title, Content = on and "Enabled" or "Disabled" })
+            end
+
+            local Main = Window:CreateTab("Main")
+            Main:CreateSection("Options")
+            Main:CreateToggle({
+                Name = "Option 1",
+                Description = "Primary toggle feature",
+                Default = true,
+                Callback = function(on)
+                    state.opt1 = on
+                    refreshStatus()
+                    note("Option 1", on)
+                end,
+            })
+            Main:CreateToggle({
+                Name = "Option 2",
+                Description = "Secondary toggle feature",
+                Default = false,
+                Callback = function(on)
+                    state.opt2 = on
+                    refreshStatus()
+                    note("Option 2", on)
+                end,
+            })
+            Main:CreateDropdown({
+                Name = "Priority Mode",
+                Options = { "Mode A", "Mode B", "Mode C" },
+                Default = "Mode A",
+                Callback = function(v)
+                    NexusLib:Notify({ Title = "Priority", Content = v })
+                end,
+            })
+
+            Main:CreateSection("Preferences")
+            Main:CreateSlider({
+                Name = "Sensitivity",
+                Min = 10,
+                Max = 100,
+                Default = 50,
+                Callback = function(v)
+                end,
+            })
+            Main:CreateInput({
+                Name = "User Tag",
+                Description = "Enter custom identifier",
+                Placeholder = "Name",
+                Callback = function(name)
+                    NexusLib:Notify({ Title = "Profile", Content = "Updated: " .. name })
+                end,
+            })
+            Main:CreateButton({
+                Name = "Reset Settings",
+                Text = "Reset",
+                Callback = function()
+                    NexusLib:Notify({ Title = "Settings", Content = "Restored to defaults" })
+                end,
+            })
+
+            local Visual = Window:CreateTab("Visual")
+            Visual:CreateSection("Display")
+            Visual:CreateToggle({
+                Name = "Show Highlights",
+                Default = true,
+                Callback = function(on) state.opt3 = on refreshStatus() note("Highlights", on) end,
+            })
+            Visual:CreateSlider({
+                Name = "Field of view",
+                Min = 70,
+                Max = 120,
+                Default = 90,
+                Callback = function(v)
+                    if workspace.CurrentCamera then
+                        workspace.CurrentCamera.FieldOfView = v
+                    end
+                end,
+            })
+
+            local Settings = Window:CreateTab("Settings")
+            Settings:CreateSection("Interface")
+            Settings:CreateKeybind({
+                Name = "Menu key",
+                Description = "Click, then press a key",
+                Default = NexusLib.ToggleKey,
+                Callback = function(key)
+                    NexusLib.ToggleKey = key
+                    NexusLib:Notify({ Title = "Keybind", Content = "Menu key set to " .. key.Name })
+                end,
+            })
+            Settings:CreateToggle({
+                Name = "Show FPS in island",
+                Default = true,
+                Callback = function(on)
+                    if Island then Island:SetStatsVisible(on) end
+                end,
+            })
+            Settings:CreateToggle({
+                Name = "Reduce motion",
+                Default = false,
+                Callback = function(on)
+                    NexusLib.ReduceMotion = on
+                end,
+            })
+            Settings:CreateSlider({
+                Name = "Notification time",
+                Description = "Seconds",
+                Min = 1,
+                Max = 8,
+                Default = 3,
+                Callback = function(v)
+                    NexusLib.NotifyDuration = v
+                end,
+            })
+            Settings:CreateSection("Config")
+            Settings:CreateButton({
+                Name = "Save config",
+                Text = "Save",
+                Callback = function()
+                    NexusLib:Notify({ Title = "Config", Content = "Saved" })
+                end,
+            })
+        end,
+    })
 end
 
-function Element040:SetVisible(visible: boolean)
-	self.IsOpen = visible
-	if visible then
-		self.Root.Visible = true
-		if self.TabBar and self.TabBar.Root then
-			self.TabBar.Root.Visible = true
-			if self.TabBar.CurrentIndex == 0 then
-				self.TabBar:SelectTab(self.CurrentIndex or 1)
-			end
-		end
-	else
-		if self.TabBar and self.TabBar.Root then
-			self.TabBar:Deselect()
-			self.TabBar.Root.Visible = false
-		end
-		self.Root.Visible = false
-	end
+pcall(function() getgenv().NexusLib = NexusLib end)
+
+if not _G.NEXUS_LIB_ONLY and not (shared and shared.NEXUS_LIB_ONLY) then
+    task.spawn(function()
+        NexusLib:Demo()
+    end)
 end
 
-function Element040:Toggle()
-	self:SetVisible(not self.IsOpen)
-end
-
-function Element040:Minimize()
-	self:SetVisible(false)
-end
-
-function Element040:Open()
-	self:SetVisible(true)
-end
-
-function Element040:Destroy()
-	pcall(function()
-		self.ScreenGui:Destroy()
-	end)
-end
-
--- ==============================================================================
--- UNIFIED WINDOW BUILDER: ELEMENT #040 (PANEL) + ELEMENT #041 (BOTTOM TAB BAR)
--- ==============================================================================
-function LucianUI:CreateWindow(config: any)
-	config = config or {}
-	local window040 = Element040.new(config)
-
-	-- Bottom TabBar completely removed as requested
-	window040.TabBar = {
-		TabsData = {},
-		CurrentIndex = 0,
-		SelectTab = function() end,
-		Deselect = function() end,
-		SetBadge = function() end,
-		SetTitle = function() end,
-		SetIcon = function() end,
-		RebuildTabs = function() end,
-		Destroy = function() end,
-	}
-
-	-- Mobile Floating Draggable Toggle Button
-	if config.MobileButton ~= false then
-		local mobBtn = createMobileToggleButton(window040.ScreenGui, window040)
-		window040.MobileButton = mobBtn
-	end
-
-	-- Keybind toggle
-	local toggleKey = config.Keybind or config.ToggleKey or Enum.KeyCode.RightControl
-	UserInputService.InputBegan:Connect(function(input, processed)
-		if not processed and input.KeyCode == toggleKey then
-			window040:Toggle()
-		end
-	end)
-
-	if config.AutoShow ~= false and config.Visible ~= false then
-		window040:SetVisible(true)
-	end
-
-	table.insert(LucianUI._windows, window040)
-	return window040
-end
-
--- Compatibility aliases for NexusLib ecosystem
-LucianUI.CreateTabBar = function(_, cfg) return TabBar041.new(cfg) end
-LucianUI.GetTheme = function() return "Dark" end
-LucianUI.GetThemeName = function() return "Dark" end
-LucianUI.GetThemes = function() return { "Dark", "Light" } end
-LucianUI.SetTheme = function(_, t)
-	for _, win in ipairs(LucianUI._windows) do
-		win:SetTheme(t)
-	end
-end
-LucianUI.DestroyAll = function()
-	for _, win in ipairs(LucianUI._windows) do
-		win:Destroy()
-	end
-	LucianUI._windows = {}
-	if notificationGui then
-		notificationGui:Destroy()
-		notificationGui = nil
-	end
-end
-
-local runtimeEnv = (getgenv and getgenv()) or _G or {}
-runtimeEnv.NexusLib = LucianUI
-runtimeEnv.LucianUI = LucianUI
-
-return LucianUI
+return NexusLib
