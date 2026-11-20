@@ -656,16 +656,16 @@ function NexusLib:CreateDynamicIsland(config)
         AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -13, 0.5, 0),
     }, Theme.Faint)
 
-    -- drawer: Hide UI + Test notify
+    -- drawer: Window controls
     local Drawer = New("Frame", {
         Position = UDim2.fromOffset(10, ISLAND_H + 2), Size = UDim2.new(1, -20, 0, 30),
         BackgroundTransparency = 1, Visible = false, Parent = Island,
     })
     local HideBtn = Button(Drawer, "Hide UI", {
-        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.25, -2, 0.5, 0), Size = UDim2.new(0.5, -3, 1, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.3, 0, 0.5, 0), Size = UDim2.new(0.58, 0, 1, 0),
     }, false)
-    local TestBtn = Button(Drawer, "Test notify", {
-        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.75, 2, 0.5, 0), Size = UDim2.new(0.5, -3, 1, 0),
+    local ResetBtn = Button(Drawer, "Center", {
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.8, 0, 0.5, 0), Size = UDim2.new(0.38, 0, 1, 0),
     }, true)
 
     local IslandApi = { Gui = Gui, Frame = Island, Expanded = false, ShowStats = true }
@@ -727,8 +727,11 @@ function NexusLib:CreateDynamicIsland(config)
         end
         IslandApi:SetExpanded(false)
     end)
-    TestBtn.MouseButton1Click:Connect(function()
-        NexusLib:Notify({ Title = "Nexus", Content = "This is a test notification" })
+    ResetBtn.MouseButton1Click:Connect(function()
+        if NexusLib.ActiveWindow then
+            NexusLib.ActiveWindow:ResetPosition()
+        end
+        IslandApi:SetExpanded(false)
     end)
 
     local frames, last = 0, os.clock()
@@ -843,6 +846,16 @@ function NexusLib:CreateWindow(config)
     if config.Keybind then
         NexusLib.ToggleKey = config.Keybind
     end
+
+    -- Automatically initialize Dynamic Island if not already running
+    local island = NexusLib.ActiveIsland
+    if not island or not island.Gui or not island.Gui.Parent then
+        island = NexusLib:CreateDynamicIsland({
+            Title = config.Title or "Nexus",
+            Status = "Active",
+        })
+    end
+
     DestroyExisting("Nexus_Window")
     local size = config.Size or UDim2.fromOffset(NexusLib.DefaultWindowSize.X, NexusLib.DefaultWindowSize.Y)
     local homeY = ISLAND_TOP + ISLAND_H + 16
