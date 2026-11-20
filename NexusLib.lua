@@ -1438,79 +1438,150 @@ function NexusLib:CreateWindow(config)
             end
         })
 
-        local OnlineSec = MusicTab:CreateSection("YouTube (No Ads / Khong Quang Cao)")
-        local ytSearchOrUrl = ""
+        local OnlineSec = MusicTab:CreateSection("YouTube Music (No Ads / Khong Quang Cao)")
+        local searchQuery = ""
+        local searchResults = {}
+        local selectedVideo = nil
+        local ResultsDropdown = nil
+
         OnlineSec:CreateInput({
-            Name = "Search Song or YouTube URL",
-            Placeholder = "Enter song title (e.g. Son Tung, Phonk) or YouTube link...",
+            Name = "Search Song on YouTube",
+            Placeholder = "Enter song title (e.g. Son Tung, Phonk, Alan Walker)...",
             Callback = function(text)
-                ytSearchOrUrl = text
+                searchQuery = text
             end
         })
 
         OnlineSec:CreateButton({
-            Name = "Play YouTube (Ad-Free)",
-            Text = "Play",
+            Name = "Search Videos",
+            Text = "Search",
             Callback = function()
-                if not ytSearchOrUrl or #ytSearchOrUrl < 2 then
-                    NexusLib:Notify({ Title = "YouTube", Content = "Please enter song title or link first!" })
+                if not searchQuery or #searchQuery < 2 then
+                    NexusLib:Notify({ Title = "YouTube", Content = "Please enter song title first!" })
                     return
                 end
-                NexusLib:Notify({ Title = "YouTube Ad-Free", Content = "Resolving clean audio stream (no ads)..." })
-                
-                -- Check if direct link or search query
-                local targetUrl = ytSearchOrUrl
-                if not targetUrl:find("youtube%.com") and not targetUrl:find("youtu%.be") and not targetUrl:find("http") then
-                    -- Search query via public Invidious instance
-                    local req = (syn and syn.request) or http_request or request or (http and http.request)
-                    if type(req) == "function" then
-                        task.spawn(function()
-                            local searchEndpoints = {
-                                "https://invidious.jing.rocks/api/v1/search?type=video&q=",
-                                "https://inv.tux.pizza/api/v1/search?type=video&q=",
-                                "https://invidious.nerdvpn.de/api/v1/search?type=video&q="
-                            }
-                            local foundId, foundTitle = nil, nil
-                            local encQuery = game:GetService("HttpService"):UrlEncode(ytSearchOrUrl)
-                            for _, sep in ipairs(searchEndpoints) do
-                                local ok, sRes = pcall(function()
-                                    return req({ Url = sep .. encQuery, Method = "GET" })
-                                end)
-                                local sBody = ok and sRes and (sRes.Body or sRes.body)
-                                if type(sBody) == "string" and #sBody > 50 then
-                                    local decOk, sData = pcall(function()
-                                        return game:GetService("HttpService"):JSONDecode(sBody)
-                                    end)
-                                    if decOk and type(sData) == "table" and sData[1] and sData[1].videoId then
-                                        foundId = sData[1].videoId
-                                        foundTitle = sData[1].title
-                                        break
-                                    end
-                                end
-                            end
-                            if foundId then
-                                local finalUrl = "https://www.youtube.com/watch?v=" .. foundId
-                                Audio:PlayUrl(finalUrl, foundTitle or ytSearchOrUrl, "YouTube Ad-Free", function(ok, err)
-                                    if not ok then
-                                        NexusLib:Notify({ Title = "YouTube Error", Content = tostring(err) })
-                                    end
-                                end)
-                            else
-                                -- Fallback to direct resolution
-                                Audio:PlayUrl(targetUrl, ytSearchOrUrl, "YouTube Stream", function(ok, err)
-                                    if not ok then
-                                        NexusLib:Notify({ Title = "YouTube Error", Content = tostring(err) })
-                                    end
-                                end)
-                            end
-                        end)
-                        return
-                    end
+                NexusLib:Notify({ Title = "YouTube", Content = "Searching for: " .. searchQuery })
+
+                local req = (syn and syn.request) or http_request or request or (http and http.request)
+                if type(req) ~= "function" then
+                    NexusLib:Notify({ Title = "Error", Content = "Executor lacks HTTP request function" })
+                    return
                 end
 
-                Audio:PlayUrl(targetUrl, nil, "YouTube Ad-Free", function(ok, err)
+                task.spawn(function()
+                    local searchEndpoints = {
+                        "https://invidious.jing.rocks/api/v1/search?type=video&q=",
+                        "https://inv.tux.pizza/api/v1/search?type=video&q=",
+                        "https://invidious.nerdvpn.de/api/v1/search?type=video&q="
+                    }
+                    local encQuery = game:GetService("HttpService"):UrlEncode(searchQuery)
+                    local foundData = nil
+
+                    for _, sep in ipairs(searchEndpoints) do
+                        local ok, sRes = pcall(function()
+                            return req({ Url = sep .. encQuery, Method = "GET" })
+                        end)
+                        local sBody = ok and sRes and (sRes.Body or sRes.body)
+                        if type(sBody) == "string" and #sBody > 50 then
+                            local decOk, sData = pcall(function()
+                                return game:GetService("HttpService"):JSONDecode(sBody)
+                            end)
+                            if decOk and type(sData) == "table" and #sData > 0 then
+                                foundData = sData
+                                break
+                            end
+                        end
+                    end
+
+                    if foundData then
+                        searchResults = {}
+                        local optionList = {}
+                        for _, item in ipairs(foundData) do
+                            if item.videoId and item.title then
+                                local cleanTitle = item.title:gsub("&quot;", '"'):gsub("&amp;", '&'):gsub("&#39;", "'")
+                                local disp = cleanTitle
+                                if #disp > 44 then disp = disp:sub(1, 41) .. "..." end
+                                local entry = {
+                                    Title = cleanTitle,
+                                    Display = disp,
+                                    Id = item.videoId,
+                                    Author = item.author or "YouTube",
+                                    Url = "https://www.youtube.com/watch?v=" .. item.videoId
+                                }
+                                table.insert(searchResults, entry)
+                                table.insert(optionList, disp)
+                                if #optionList >= 8 then break end
+                            end
+                        end
+
+                        if #optionList > 0 then
+                            selectedVideo = searchResults[1]
+                            if ResultsDropdown and type(ResultsDropdown.Refresh) == "function" then
+                                ResultsDropdown:Refresh(optionList)
+                            end
+                            NexusLib:Notify({ Title = "YouTube", Content = "Found " .. #optionList .. " videos! Pick one below." })
+                        else
+                            NexusLib:Notify({ Title = "YouTube", Content = "No videos found for: " .. searchQuery })
+                        end
+                    else
+                        NexusLib:Notify({ Title = "YouTube", Content = "Search request failed. Please check connection." })
+                    end
+                end)
+            end
+        })
+
+        ResultsDropdown = OnlineSec:CreateDropdown({
+            Name = "Select Video to Play",
+            Options = { "Enter search above and click Search" },
+            Default = "Enter search above and click Search",
+            Callback = function(choice)
+                for _, res in ipairs(searchResults) do
+                    if res.Display == choice or res.Title == choice then
+                        selectedVideo = res
+                        break
+                    end
+                end
+            end
+        })
+
+        OnlineSec:CreateButton({
+            Name = "Play Selected Video",
+            Text = "Play Video",
+            Callback = function()
+                if not selectedVideo or not selectedVideo.Url then
+                    NexusLib:Notify({ Title = "YouTube", Content = "Please search and select a video from the list!" })
+                    return
+                end
+                NexusLib:Notify({ Title = "YouTube Ad-Free", Content = "Loading: " .. selectedVideo.Title })
+                Audio:PlayUrl(selectedVideo.Url, selectedVideo.Title, selectedVideo.Author, function(ok, err)
                     if not ok then
                         NexusLib:Notify({ Title = "YouTube Error", Content = tostring(err) })
+                    end
+                end)
+            end
+        })
+
+        local directUrlInput = ""
+        OnlineSec:CreateInput({
+            Name = "Direct YouTube Link or MP3 URL",
+            Placeholder = "Paste direct link (e.g. https://www.youtube.com/watch?v=...)...",
+            Callback = function(text)
+                directUrlInput = text
+            end
+        })
+
+        OnlineSec:CreateButton({
+            Name = "Play Direct Link",
+            Text = "Play Link",
+            Callback = function()
+                if not directUrlInput or #directUrlInput < 5 then
+                    NexusLib:Notify({ Title = "Media Player", Content = "Please paste a valid URL first!" })
+                    return
+                end
+                NexusLib:Notify({ Title = "Media Player", Content = "Resolving audio..." })
+                Audio:PlayUrl(directUrlInput, nil, "Direct Stream", function(ok, err)
+                    if not ok then
+                        NexusLib:Notify({ Title = "Error", Content = tostring(err) })
                     end
                 end)
             end
