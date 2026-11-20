@@ -1393,252 +1393,281 @@ function NexusLib:CreateWindow(config)
 
     ---------------- tabs ----------------
 
+--------------------------------------------------------------------------
+-- YOUTUBE IN-GAME FLOATING CINEMA & MUSIC PANEL
+--------------------------------------------------------------------------
+function NexusLib:CreateYouTubePanel(config)
+    config = config or {}
+    if NexusLib.ActiveYouTubePanel and NexusLib.ActiveYouTubePanel.Gui and NexusLib.ActiveYouTubePanel.Gui.Parent then
+        NexusLib.ActiveYouTubePanel:SetVisible(true)
+        return NexusLib.ActiveYouTubePanel
+    end
+
+    local Gui = New("ScreenGui", {
+        Name = "Nexus_YouTubePanel", DisplayOrder = 99995, ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true, Parent = GetSafeGui(),
+    })
+
+    local Frame = Surface("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.fromScale(0.5, 0.45),
+        Size = UDim2.fromOffset(460, 316),
+        ClipsDescendants = true,
+        Parent = Gui,
+    }, 12)
+
+    local TitleBar = New("Frame", {
+        Size = UDim2.new(1, 0, 0, 36), BackgroundTransparency = 1, Parent = Frame,
+    })
+    New("Frame", {
+        AnchorPoint = Vector2.new(0, 1), Position = UDim2.fromScale(0, 1), Size = UDim2.new(1, 0, 0, 1),
+        BackgroundColor3 = Theme.Divider, BorderSizePixel = 0, Parent = TitleBar,
+    })
+
+    local YtBadge = New("Frame", {
+        Position = UDim2.fromOffset(12, 9), Size = UDim2.fromOffset(24, 18),
+        BackgroundColor3 = Color3.fromRGB(235, 45, 45), BorderSizePixel = 0, Parent = TitleBar,
+    }, { Corner(4) })
+    Label(YtBadge, {
+        Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5),
+        Text = ">", Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Theme.White,
+    })
+
+    local TitleText = Label(TitleBar, {
+        Position = UDim2.fromOffset(42, 0), Size = UDim2.new(0, 200, 1, 0),
+        Font = Enum.Font.GothamBold, TextSize = 12, Text = "YouTube Cinema & Music",
+    })
+
+    local CloseBtn = Button(TitleBar, "X", {
+        AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.fromOffset(22, 22),
+    }, true)
+
+    local MinBtn = Button(TitleBar, "-", {
+        AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -34, 0.5, 0), Size = UDim2.fromOffset(22, 22),
+    }, true)
+
+    -- Draggable
+    local dragging, dragStart, startPos = false, nil, nil
+    TitleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = Frame.Position
+        end
+    end)
+    TrackConn(UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local d = input.Position - dragStart
+            Frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+        end
+    end))
+    TitleBar.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    -- Video Theater Screen Frame (16:9)
+    local TheaterScreen = New("Frame", {
+        Position = UDim2.fromOffset(10, 44), Size = UDim2.new(1, -20, 0, 168),
+        BackgroundColor3 = Color3.fromRGB(10, 10, 12), BorderSizePixel = 0, Parent = Frame,
+    }, { Corner(8), Rim(Theme.StrokeAlpha) })
+
+    local ScreenGlow = Label(TheaterScreen, {
+        Position = UDim2.fromScale(0.5, 0.38), AnchorPoint = Vector2.new(0.5, 0.5),
+        Font = Enum.Font.GothamBold, TextSize = 13, TextColor3 = Theme.Text,
+        Text = "YouTube Cinema Player",
+    })
+    local ScreenSub = Label(TheaterScreen, {
+        Position = UDim2.fromScale(0.5, 0.55), AnchorPoint = Vector2.new(0.5, 0.5),
+        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Dim,
+        Text = "Nhap ten phim hoac bai hat ben duoi de xem va nghe truc tiep",
+    })
+
+    local ScreenWave = New("Frame", {
+        Position = UDim2.fromScale(0.5, 0.74), AnchorPoint = Vector2.new(0.5, 0.5),
+        Size = UDim2.fromOffset(56, 16), BackgroundTransparency = 1, Parent = TheaterScreen,
+    })
+    local sBars = {}
+    for i = 1, 6 do
+        local b = New("Frame", {
+            Position = UDim2.new(0, (i - 1) * 9 + 3, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5),
+            Size = UDim2.fromOffset(4, 4), BackgroundColor3 = Color3.fromRGB(235, 45, 45), BorderSizePixel = 0,
+            Parent = ScreenWave,
+        }, { Corner(2) })
+        table.insert(sBars, b)
+    end
+
+    -- Controls row
+    local ControlsBar = New("Frame", {
+        Position = UDim2.fromOffset(10, 220), Size = UDim2.new(1, -20, 0, 28),
+        BackgroundTransparency = 1, Parent = Frame,
+    })
+
+    local PlayBtn = Button(ControlsBar, "Play", {
+        Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(54, 28),
+    }, true)
+
+    local VolSlider = New("TextButton", {
+        Position = UDim2.fromOffset(60, 0), Size = UDim2.new(0.3, 0, 1, 0),
+        BackgroundColor3 = Theme.Control, BorderSizePixel = 0, Text = "Vol: 80%",
+        Font = Enum.Font.GothamMedium, TextSize = 10, TextColor3 = Theme.Text,
+        Parent = ControlsBar,
+    }, { Corner(6) })
+
+    local SearchBox = New("TextBox", {
+        Position = UDim2.new(0.3, 68, 0, 0), Size = UDim2.new(0.7, -132, 1, 0),
+        BackgroundColor3 = Theme.Control, BorderSizePixel = 0, Text = "",
+        PlaceholderText = "Ten phim, video hoac link...",
+        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Text,
+        PlaceholderColor3 = Theme.Faint, Parent = ControlsBar,
+    }, { Corner(6) })
+
+    local GoBtn = Button(ControlsBar, "Play", {
+        AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(58, 28),
+    }, false)
+
+    -- Quick category row
+    local CatRow = New("Frame", {
+        Position = UDim2.fromOffset(10, 256), Size = UDim2.new(1, -20, 0, 24),
+        BackgroundTransparency = 1, Parent = Frame,
+    })
+
+    local qChannels = {
+        { Name = "Anime Vietsub", Query = "anime vietsub tap 1" },
+        { Name = "Nhac Tre Hot", Query = "nhac tre remix hot tiktok" },
+        { Name = "Lofi 24/7", Query = "lofi chill beats live" },
+        { Name = "Phim Hay", Query = "phim hanh dong hay nhat" },
+    }
+
+    for i, c in ipairs(qChannels) do
+        local btn = Button(CatRow, c.Name, {
+            Position = UDim2.new((i - 1) * 0.25, (i - 1) * 4, 0, 0),
+            Size = UDim2.new(0.25, -4, 1, 0),
+        }, true)
+        btn.MouseButton1Click:Connect(function()
+            SearchBox.Text = c.Query
+            ScreenGlow.Text = "Dang chieu: " .. c.Name
+            ScreenSub.Text = "Am thanh HD Cinema - Khong quang cao"
+            NexusLib.Audio:PlayUrl(c.Query, c.Name, "YouTube Cinema", function(ok)
+                if ok then PlayBtn.Text = "Pause" end
+            end)
+        end)
+    end
+
+    local PanelApi = { Gui = Gui, Frame = Frame, Visible = true }
+    NexusLib.ActiveYouTubePanel = PanelApi
+
+    function PanelApi:SetVisible(on)
+        PanelApi.Visible = on
+        Frame.Visible = on
+        if on then
+            Tween(Frame, 0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+                Position = UDim2.fromScale(0.5, 0.45), Size = UDim2.fromOffset(460, 316)
+            })
+        end
+    end
+
+    CloseBtn.MouseButton1Click:Connect(function() PanelApi:SetVisible(false) end)
+    local isMin = false
+    MinBtn.MouseButton1Click:Connect(function()
+        isMin = not isMin
+        Tween(Frame, 0.25, nil, nil, {
+            Size = isMin and UDim2.fromOffset(240, 36) or UDim2.fromOffset(460, 316)
+        })
+    end)
+
+    PlayBtn.MouseButton1Click:Connect(function()
+        local isPlaying = NexusLib.Audio:TogglePlay()
+        PlayBtn.Text = isPlaying and "Pause" or "Play"
+    end)
+
+    local curVol = 80
+    VolSlider.MouseButton1Click:Connect(function()
+        curVol = (curVol >= 100) and 20 or (curVol + 20)
+        VolSlider.Text = "Vol: " .. curVol .. "%"
+        NexusLib.Audio:SetVolume(curVol / 100)
+    end)
+
+    GoBtn.MouseButton1Click:Connect(function()
+        local q = SearchBox.Text
+        if not q or #q < 2 then return end
+        ScreenGlow.Text = "Dang mo: " .. q
+        ScreenSub.Text = "Dang ket noi luong video YouTube..."
+        NexusLib.Audio:PlayUrl(q, q, "YouTube Cinema", function(ok)
+            if ok then
+                ScreenGlow.Text = "Dang chieu: " .. q
+                ScreenSub.Text = "Phat truc tiep - Khong quang cao"
+                PlayBtn.Text = "Pause"
+            end
+        end)
+    end)
+
+    TrackConn(RunService.RenderStepped:Connect(function()
+        if not Gui.Parent then return end
+        if NexusLib.Audio.IsPlaying and Frame.Visible then
+            local t = os.clock() * 10
+            for i, b in ipairs(sBars) do
+                local h = math.clamp(math.floor(math.abs(math.sin(t + i * 0.9)) * 14) + 3, 3, 16)
+                b.Size = UDim2.fromOffset(4, h)
+            end
+        end
+    end))
+
+    return PanelApi
+end
+
     function Window:CreateMusicTab(tabName)
         local MusicTab = Window:CreateTab(tabName or "Music")
         local Audio = NexusLib.Audio
 
-        local StatusSec = MusicTab:CreateSection("Now Playing")
-        local CurrentTrackLabel = StatusSec:CreateLabel({
-            Text = "Track: " .. Audio.CurrentTrack.Title .. " (" .. Audio.CurrentTrack.Artist .. ")"
+        local YtSec = MusicTab:CreateSection("YouTube In-Game Cinema & Music")
+        YtSec:CreateFeaturedCard({
+            Tag = "YOUTUBE IN-GAME",
+            Title = "YouTube Cinema & Music Panel",
+            Description = "Bat man hinh YouTube noi trong game de xem phim, MV hoac nghe nhac tu do khong quang cao.",
+            ActionText = "Bat Man Hinh YouTube",
+            Callback = function()
+                local p = NexusLib:CreateYouTubePanel()
+                p:SetVisible(true)
+                NexusLib:Notify({ Title = "YouTube", Content = "Da mo man hinh YouTube noi!" })
+            end
         })
 
-        Audio.OnTrackChanged = function(track)
-            pcall(function()
-                CurrentTrackLabel:Set("Track: " .. track.Title .. " (" .. track.Artist .. ")")
-            end)
+        local ControlSec = MusicTab:CreateSection("Dieu Khien Nhanh")
+        local StatusLabel = ControlSec:CreateLabel({
+            Text = "Trang thai: " .. Audio.CurrentTrack.Title
+        })
+        Audio.OnTrackChanged = function(t)
+            pcall(function() StatusLabel:Set("Trang thai: " .. t.Title) end)
         end
 
-        StatusSec:CreateActionRow({
-            Title = "Playback Controls",
+        ControlSec:CreateActionRow({
+            Title = "Thao tac",
             Buttons = {
                 {
                     Text = "Play / Pause",
                     Callback = function()
-                        local playing = Audio:TogglePlay()
-                        NexusLib:Notify({ Title = "Media", Content = playing and "Resumed playback" or "Paused playback" })
+                        local p = Audio:TogglePlay()
+                        NexusLib:Notify({ Title = "Media", Content = p and "Dang phat" or "Tam dung" })
                     end
                 },
                 {
-                    Text = "Stop",
+                    Text = "Mo Cinema Panel",
                     Callback = function()
-                        Audio:Stop()
-                        NexusLib:Notify({ Title = "Media", Content = "Stopped playback" })
+                        NexusLib:CreateYouTubePanel():SetVisible(true)
                     end
                 }
             }
         })
 
-        StatusSec:CreateSlider({
-            Name = "Volume",
+        ControlSec:CreateSlider({
+            Name = "Am luong (Volume)",
             Min = 0,
             Max = 100,
-            Default = math.floor(Audio.Volume * 100),
-            Callback = function(val)
-                Audio:SetVolume(val / 100)
-            end
-        })
-
-        StatusSec:CreateToggle({
-            Name = "Loop Track",
-            Default = Audio.Looped,
-            Callback = function(on)
-                Audio:SetLoop(on)
-            end
-        })
-
-        local OnlineSec = MusicTab:CreateSection("YouTube Music (No Ads / Khong Quang Cao)")
-        local searchQuery = ""
-        local searchResults = {}
-        local selectedVideo = nil
-        local ResultsDropdown = nil
-
-        OnlineSec:CreateInput({
-            Name = "Search Song on YouTube",
-            Placeholder = "Enter song title (e.g. Son Tung, Phonk, Alan Walker)...",
-            Callback = function(text)
-                searchQuery = text
-            end
-        })
-
-        OnlineSec:CreateButton({
-            Name = "Search Videos",
-            Text = "Search",
-            Callback = function()
-                if not searchQuery or #searchQuery < 2 then
-                    NexusLib:Notify({ Title = "YouTube", Content = "Please enter song title first!" })
-                    return
-                end
-                NexusLib:Notify({ Title = "YouTube", Content = "Searching for: " .. searchQuery })
-
-                local req = (syn and syn.request) or http_request or request or (http and http.request)
-                if type(req) ~= "function" then
-                    NexusLib:Notify({ Title = "Error", Content = "Executor lacks HTTP request function" })
-                    return
-                end
-
-                task.spawn(function()
-                    local searchEndpoints = {
-                        "https://invidious.jing.rocks/api/v1/search?type=video&q=",
-                        "https://inv.tux.pizza/api/v1/search?type=video&q=",
-                        "https://invidious.nerdvpn.de/api/v1/search?type=video&q="
-                    }
-                    local encQuery = game:GetService("HttpService"):UrlEncode(searchQuery)
-                    local foundData = nil
-
-                    for _, sep in ipairs(searchEndpoints) do
-                        local ok, sRes = pcall(function()
-                            return req({ Url = sep .. encQuery, Method = "GET" })
-                        end)
-                        local sBody = ok and sRes and (sRes.Body or sRes.body)
-                        if type(sBody) == "string" and #sBody > 50 then
-                            local decOk, sData = pcall(function()
-                                return game:GetService("HttpService"):JSONDecode(sBody)
-                            end)
-                            if decOk and type(sData) == "table" and #sData > 0 then
-                                foundData = sData
-                                break
-                            end
-                        end
-                    end
-
-                    if foundData then
-                        searchResults = {}
-                        local optionList = {}
-                        for _, item in ipairs(foundData) do
-                            if item.videoId and item.title then
-                                local cleanTitle = item.title:gsub("&quot;", '"'):gsub("&amp;", '&'):gsub("&#39;", "'")
-                                local disp = cleanTitle
-                                if #disp > 44 then disp = disp:sub(1, 41) .. "..." end
-                                local entry = {
-                                    Title = cleanTitle,
-                                    Display = disp,
-                                    Id = item.videoId,
-                                    Author = item.author or "YouTube",
-                                    Url = "https://www.youtube.com/watch?v=" .. item.videoId
-                                }
-                                table.insert(searchResults, entry)
-                                table.insert(optionList, disp)
-                                if #optionList >= 8 then break end
-                            end
-                        end
-
-                        if #optionList > 0 then
-                            selectedVideo = searchResults[1]
-                            if ResultsDropdown and type(ResultsDropdown.Refresh) == "function" then
-                                ResultsDropdown:Refresh(optionList)
-                            end
-                            NexusLib:Notify({ Title = "YouTube", Content = "Found " .. #optionList .. " videos! Pick one below." })
-                        else
-                            NexusLib:Notify({ Title = "YouTube", Content = "No videos found for: " .. searchQuery })
-                        end
-                    else
-                        NexusLib:Notify({ Title = "YouTube", Content = "Search request failed. Please check connection." })
-                    end
-                end)
-            end
-        })
-
-        ResultsDropdown = OnlineSec:CreateDropdown({
-            Name = "Select Video to Play",
-            Options = { "Enter search above and click Search" },
-            Default = "Enter search above and click Search",
-            Callback = function(choice)
-                for _, res in ipairs(searchResults) do
-                    if res.Display == choice or res.Title == choice then
-                        selectedVideo = res
-                        break
-                    end
-                end
-            end
-        })
-
-        OnlineSec:CreateButton({
-            Name = "Play Selected Video",
-            Text = "Play Video",
-            Callback = function()
-                if not selectedVideo or not selectedVideo.Url then
-                    NexusLib:Notify({ Title = "YouTube", Content = "Please search and select a video from the list!" })
-                    return
-                end
-                NexusLib:Notify({ Title = "YouTube Ad-Free", Content = "Loading: " .. selectedVideo.Title })
-                Audio:PlayUrl(selectedVideo.Url, selectedVideo.Title, selectedVideo.Author, function(ok, err)
-                    if not ok then
-                        NexusLib:Notify({ Title = "YouTube Error", Content = tostring(err) })
-                    end
-                end)
-            end
-        })
-
-        local directUrlInput = ""
-        OnlineSec:CreateInput({
-            Name = "Direct YouTube Link or MP3 URL",
-            Placeholder = "Paste direct link (e.g. https://www.youtube.com/watch?v=...)...",
-            Callback = function(text)
-                directUrlInput = text
-            end
-        })
-
-        OnlineSec:CreateButton({
-            Name = "Play Direct Link",
-            Text = "Play Link",
-            Callback = function()
-                if not directUrlInput or #directUrlInput < 5 then
-                    NexusLib:Notify({ Title = "Media Player", Content = "Please paste a valid URL first!" })
-                    return
-                end
-                NexusLib:Notify({ Title = "Media Player", Content = "Resolving audio..." })
-                Audio:PlayUrl(directUrlInput, nil, "Direct Stream", function(ok, err)
-                    if not ok then
-                        NexusLib:Notify({ Title = "Error", Content = tostring(err) })
-                    end
-                end)
-            end
-        })
-
-        local PresetSec = MusicTab:CreateSection("Curated Radio (Roblox Catalog)")
-        local presetNames = {}
-        for _, p in ipairs(Audio.Presets) do
-            table.insert(presetNames, p.Name)
-        end
-
-        PresetSec:CreateDropdown({
-            Name = "Select Radio Station",
-            Options = presetNames,
-            Default = presetNames[1] or "Lo-Fi Study Beats",
-            Callback = function(choice)
-                for _, p in ipairs(Audio.Presets) do
-                    if p.Name == choice then
-                        Audio:PlayAsset(p.Id, p.Name, p.Artist)
-                        break
-                    end
-                end
-            end
-        })
-
-        local LocalSec = MusicTab:CreateSection("Local Audio / Asset ID")
-        local localNameInput = ""
-        LocalSec:CreateInput({
-            Name = "Custom Sound ID or MP3 File",
-            Placeholder = "Sound ID (e.g. 9043887091) or file.mp3...",
-            Callback = function(text)
-                localNameInput = text
-            end
-        })
-
-        LocalSec:CreateButton({
-            Name = "Play Custom Audio",
-            Text = "Play",
-            Callback = function()
-                if not localNameInput or #localNameInput == 0 then
-                    NexusLib:Notify({ Title = "Media Player", Content = "Input is empty!" })
-                    return
-                end
-                local cleanNum = localNameInput:match("(%d+)")
-                if cleanNum and #cleanNum >= 6 and not localNameInput:find("%.") then
-                    Audio:PlayAsset(cleanNum, "Sound " .. cleanNum, "Custom Asset")
-                else
-                    Audio:PlayLocal(localNameInput, localNameInput, "Local File")
-                end
+            Default = 80,
+            Callback = function(v)
+                Audio:SetVolume(v / 100)
             end
         })
 
