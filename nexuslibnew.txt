@@ -605,20 +605,28 @@ local function Button(parent, text, props, ghost)
 end
 
 --------------------------------------------------------------------------
--- AUDIO / MEDIA ENGINE (YouTube, Roblox Sound ID, Local MP3, Direct Stream)
+-- AUDIO / MEDIA ENGINE (Roblox Sound ID, Native Roblox Audio)
 --------------------------------------------------------------------------
 local AudioEngine = {
     Sound = nil,
-    CurrentTrack = { Title = "No Audio Playing", Artist = "Nexus Radio", Source = "" },
+    CurrentTrack = { Title = "No Audio Playing", Artist = "Roblox Audio", Source = "", AssetId = "" },
     IsPlaying = false,
-    Volume = 0.5,
+    Volume = 0.8,
+    PlaybackSpeed = 1,
     Looped = false,
     Presets = {
-        { Name = "Lo-Fi Chill Beats (100% Working)", Id = "9043887091", Artist = "APM / Lofi Chill" },
-        { Name = "Noisestorm - Crab Rave (Monstercat)", Id = "5410086218", Artist = "Monstercat" },
-        { Name = "Paradise Falls - Acoustic Chill", Id = "1837879082", Artist = "Acoustic Guitar" },
-        { Name = "Uptown - Cyberpunk Synthwave", Id = "1845554017", Artist = "Synthwave Groove" },
-        { Name = "Happy Song - Electro Gaming Hype", Id = "1843404009", Artist = "Roblox Official" },
+        { Name = "Lo-Fi Chill Beats", Id = "9043887091", Artist = "APM Music" },
+        { Name = "Noisestorm - Crab Rave", Id = "5410086218", Artist = "Monstercat" },
+        { Name = "Paradise Falls Acoustic", Id = "1837879082", Artist = "Acoustic Chill" },
+        { Name = "Cyberpunk Synthwave", Id = "1845554017", Artist = "Uptown Groove" },
+        { Name = "Electro Gaming Hype", Id = "1843404009", Artist = "Roblox Official" },
+        { Name = "Rainy Day Lo-Fi Beats", Id = "9048377759", Artist = "APM Music" },
+        { Name = "Peaceful Piano Melody", Id = "9046863251", Artist = "Piano Solo" },
+        { Name = "Chill Afternoon Vibes", Id = "9042211993", Artist = "Smooth Lo-Fi" },
+        { Name = "Speed Rush EDM Beat", Id = "9044565998", Artist = "Phonk / Gaming" },
+        { Name = "Neon Cyberpunk Drive", Id = "9045812904", Artist = "Electronic" },
+        { Name = "Monstercat EDM Anthem", Id = "7024222037", Artist = "Monstercat" },
+        { Name = "Gentle Breeze Acoustic", Id = "9047105259", Artist = "Guitar Melody" },
     },
     OnTrackChanged = nil,
     OnStateChanged = nil,
@@ -633,7 +641,7 @@ local function EnsureSound()
     s.Name = "NexusAudioStream"
     s.Volume = AudioEngine.Volume or 0.8
     s.Looped = AudioEngine.Looped
-    s.PlaybackSpeed = 1
+    s.PlaybackSpeed = AudioEngine.PlaybackSpeed or 1
     s.RollOffMaxDistance = 10000000
     s.RollOffMinDistance = 10000000
     pcall(function() s.Parent = workspace.CurrentCamera or game:GetService("SoundService") end)
@@ -664,24 +672,53 @@ local function EnsureSound()
 end
 
 function AudioEngine:PlayAsset(assetId, title, artist)
+    local cleanId = tostring(assetId or ""):gsub("%D", "")
+    if cleanId == "" then
+        NexusLib:Notify({ Title = "Audio Error", Content = "ID am thanh khong hop le!" })
+        return false
+    end
+
     local s = EnsureSound()
-    local cleanId = tostring(assetId):gsub("%D", "")
     s.SoundId = "rbxassetid://" .. cleanId
     s.TimePosition = 0
     s.Volume = AudioEngine.Volume or 0.8
+    s.PlaybackSpeed = AudioEngine.PlaybackSpeed or 1
+    s.Looped = AudioEngine.Looped
     s:Play()
+
     task.spawn(function()
         if not s.IsLoaded then
             pcall(function() s.Loaded:Wait() end)
         end
         s:Play()
     end)
+
     AudioEngine.IsPlaying = true
     AudioEngine.CurrentTrack = {
-        Title = title or ("Asset " .. cleanId),
+        Title = title or ("Roblox Track " .. cleanId),
         Artist = artist or "Roblox Audio",
-        Source = "rbxassetid://" .. cleanId
+        Source = "rbxassetid://" .. cleanId,
+        AssetId = cleanId,
     }
+
+    task.spawn(function()
+        local ok, info = pcall(function()
+            return game:GetService("MarketplaceService"):GetProductInfo(tonumber(cleanId), Enum.InfoType.Asset)
+        end)
+        if ok and info and info.Name and info.Name ~= "" then
+            AudioEngine.CurrentTrack.Title = info.Name
+            if info.Creator and info.Creator.Name then
+                AudioEngine.CurrentTrack.Artist = info.Creator.Name
+            end
+            if type(AudioEngine.OnTrackChanged) == "function" then
+                pcall(AudioEngine.OnTrackChanged, AudioEngine.CurrentTrack)
+            end
+            if NexusLib.ActiveIsland and type(NexusLib.ActiveIsland.UpdateMediaVisuals) == "function" then
+                NexusLib.ActiveIsland:UpdateMediaVisuals()
+            end
+        end
+    end)
+
     if type(AudioEngine.OnTrackChanged) == "function" then
         pcall(AudioEngine.OnTrackChanged, AudioEngine.CurrentTrack)
     end
@@ -691,7 +728,8 @@ function AudioEngine:PlayAsset(assetId, title, artist)
     if NexusLib.ActiveIsland and type(NexusLib.ActiveIsland.UpdateMediaVisuals) == "function" then
         NexusLib.ActiveIsland:UpdateMediaVisuals()
     end
-    NexusLib:Notify({ Title = "Music Player", Content = "Playing: " .. AudioEngine.CurrentTrack.Title })
+
+    NexusLib:Notify({ Title = "Roblox Audio", Content = "Dang phat: " .. AudioEngine.CurrentTrack.Title })
     return true
 end
 
@@ -718,7 +756,8 @@ function AudioEngine:PlayLocal(fileName, title, artist)
     AudioEngine.CurrentTrack = {
         Title = title or fileName,
         Artist = artist or "Local File",
-        Source = fileName
+        Source = fileName,
+        AssetId = "",
     }
     if type(AudioEngine.OnTrackChanged) == "function" then
         pcall(AudioEngine.OnTrackChanged, AudioEngine.CurrentTrack)
@@ -729,98 +768,20 @@ function AudioEngine:PlayLocal(fileName, title, artist)
     if NexusLib.ActiveIsland and type(NexusLib.ActiveIsland.UpdateMediaVisuals) == "function" then
         NexusLib.ActiveIsland:UpdateMediaVisuals()
     end
-    NexusLib:Notify({ Title = "Music Player", Content = "Playing: " .. AudioEngine.CurrentTrack.Title })
+    NexusLib:Notify({ Title = "Roblox Audio", Content = "Dang phat: " .. AudioEngine.CurrentTrack.Title })
     return true
 end
 
 function AudioEngine:PlayUrl(url, title, artist, onFinish)
-    local req = (syn and syn.request) or http_request or request or (http and http.request)
-    local getAsset = getcustomasset or getsynasset
-    if type(req) ~= "function" or type(writefile) ~= "function" or type(getAsset) ~= "function" then
-        NexusLib:Notify({ Title = "Audio Error", Content = "Executor lacks HTTP/file capabilities" })
-        if onFinish then onFinish(false, "Executor lacks HTTP/file capabilities") end
-        return false
+    local cleanId = tostring(url or ""):gsub("%D", "")
+    if cleanId ~= "" and #cleanId >= 6 then
+        local res = AudioEngine:PlayAsset(cleanId, title, artist)
+        if onFinish then onFinish(res) end
+        return res
     end
-
-    NexusLib:Notify({ Title = "Music Player", Content = "Resolving & downloading audio..." })
-
-    task.spawn(function()
-        local streamUrl = url
-        local isYoutube = url:find("youtube%.com") or url:find("youtu%.be")
-        
-        if isYoutube then
-            local endpoints = {
-                "https://api.cobalt.tools/",
-                "https://cobalt-api.kwiatekm.tokyo/"
-            }
-            local resolved = false
-            for _, ep in ipairs(endpoints) do
-                local ok, res = pcall(function()
-                    return req({
-                        Url = ep,
-                        Method = "POST",
-                        Headers = {
-                            ["Accept"] = "application/json",
-                            ["Content-Type"] = "application/json"
-                        },
-                        Body = game:GetService("HttpService"):JSONEncode({
-                            url = url,
-                            downloadMode = "audio",
-                            audioFormat = "mp3"
-                        })
-                    })
-                end)
-                if ok and res and res.Body then
-                    local decOk, data = pcall(function()
-                        return game:GetService("HttpService"):JSONDecode(res.Body)
-                    end)
-                    if decOk and data and (data.url or (data.status == "tunnel" and data.url)) then
-                        streamUrl = data.url
-                        resolved = true
-                        break
-                    end
-                end
-            end
-            if not resolved then
-                NexusLib:Notify({ Title = "YouTube Error", Content = "Could not convert YouTube link" })
-                if onFinish then onFinish(false, "Failed to resolve YouTube audio") end
-                return
-            end
-        end
-
-        local dlOk, dlRes = pcall(function()
-            return req({ Url = streamUrl, Method = "GET" })
-        end)
-        local body = dlOk and dlRes and (dlRes.Body or dlRes.body)
-        if type(body) == "string" and #body > 1000 then
-            pcall(function() writefile("nexus_cached_track.mp3", body) end)
-            local s = EnsureSound()
-            s.SoundId = getAsset("nexus_cached_track.mp3")
-            s.TimePosition = 0
-            s:Play()
-            AudioEngine.IsPlaying = true
-            AudioEngine.CurrentTrack = {
-                Title = title or (isYoutube and "YouTube Audio" or "Direct Audio Stream"),
-                Artist = artist or (isYoutube and "YouTube" or "Web Stream"),
-                Source = url
-            }
-            if type(AudioEngine.OnTrackChanged) == "function" then
-                pcall(AudioEngine.OnTrackChanged, AudioEngine.CurrentTrack)
-            end
-            if type(AudioEngine.OnStateChanged) == "function" then
-                pcall(AudioEngine.OnStateChanged, true)
-            end
-            if NexusLib.ActiveIsland and type(NexusLib.ActiveIsland.UpdateMediaVisuals) == "function" then
-                NexusLib.ActiveIsland:UpdateMediaVisuals()
-            end
-            NexusLib:Notify({ Title = "Music Player", Content = "Playing: " .. AudioEngine.CurrentTrack.Title })
-            if onFinish then onFinish(true) end
-        else
-            NexusLib:Notify({ Title = "Download Error", Content = "Failed to download audio bytes" })
-            if onFinish then onFinish(false, "Failed to download audio") end
-        end
-    end)
-    return true
+    NexusLib:Notify({ Title = "Roblox Audio", Content = "Vui long dung Roblox Sound ID de phat nhac!" })
+    if onFinish then onFinish(false, "Requires Roblox Sound ID") end
+    return false
 end
 
 function AudioEngine:TogglePlay()
@@ -841,6 +802,19 @@ function AudioEngine:TogglePlay()
     return AudioEngine.IsPlaying
 end
 
+function AudioEngine:Replay()
+    local s = EnsureSound()
+    s.TimePosition = 0
+    s:Play()
+    AudioEngine.IsPlaying = true
+    if type(AudioEngine.OnStateChanged) == "function" then
+        pcall(AudioEngine.OnStateChanged, true)
+    end
+    if NexusLib.ActiveIsland and type(NexusLib.ActiveIsland.UpdateMediaVisuals) == "function" then
+        NexusLib.ActiveIsland:UpdateMediaVisuals()
+    end
+end
+
 function AudioEngine:Stop()
     local s = EnsureSound()
     s:Stop()
@@ -858,6 +832,12 @@ function AudioEngine:SetVolume(vol)
     AudioEngine.Volume = math.clamp(vol, 0, 1)
     local s = EnsureSound()
     s.Volume = AudioEngine.Volume
+end
+
+function AudioEngine:SetPlaybackSpeed(speed)
+    AudioEngine.PlaybackSpeed = math.clamp(speed, 0.1, 5)
+    local s = EnsureSound()
+    s.PlaybackSpeed = AudioEngine.PlaybackSpeed
 end
 
 function AudioEngine:SetLoop(loop)
@@ -1394,24 +1374,24 @@ function NexusLib:CreateWindow(config)
     ---------------- tabs ----------------
 
 --------------------------------------------------------------------------
--- YOUTUBE IN-GAME FLOATING CINEMA & MUSIC PANEL
+-- FLOATING ROBLOX MUSIC PLAYER PANEL
 --------------------------------------------------------------------------
-function NexusLib:CreateYouTubePanel(config)
+function NexusLib:CreateMusicPanel(config)
     config = config or {}
-    if NexusLib.ActiveYouTubePanel and NexusLib.ActiveYouTubePanel.Gui and NexusLib.ActiveYouTubePanel.Gui.Parent then
-        NexusLib.ActiveYouTubePanel:SetVisible(true)
-        return NexusLib.ActiveYouTubePanel
+    if NexusLib.ActiveMusicPanel and NexusLib.ActiveMusicPanel.Gui and NexusLib.ActiveMusicPanel.Gui.Parent then
+        NexusLib.ActiveMusicPanel:SetVisible(true)
+        return NexusLib.ActiveMusicPanel
     end
 
     local Gui = New("ScreenGui", {
-        Name = "Nexus_YouTubePanel", DisplayOrder = 99995, ResetOnSpawn = false,
+        Name = "Nexus_MusicPanel", DisplayOrder = 99995, ResetOnSpawn = false,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true, Parent = GetSafeGui(),
     })
 
     local Frame = Surface("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.fromScale(0.5, 0.45),
-        Size = UDim2.fromOffset(460, 316),
+        Size = UDim2.fromOffset(380, 230),
         ClipsDescendants = true,
         Parent = Gui,
     }, 12)
@@ -1424,399 +1404,424 @@ function NexusLib:CreateYouTubePanel(config)
         BackgroundColor3 = Theme.Divider, BorderSizePixel = 0, Parent = TitleBar,
     })
 
-    local YtBadge = New("Frame", {
-        Position = UDim2.fromOffset(12, 9), Size = UDim2.fromOffset(24, 18),
-        BackgroundColor3 = Color3.fromRGB(235, 45, 45), BorderSizePixel = 0, Parent = TitleBar,
+    local IconBox = New("Frame", {
+        Position = UDim2.fromOffset(12, 9), Size = UDim2.fromOffset(18, 18),
+        BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Parent = TitleBar,
     }, { Corner(4) })
-    Label(YtBadge, {
+    Label(IconBox, {
         Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5),
-        Text = ">", Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Theme.White,
+        Text = ">", Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Theme.Surface,
     })
 
-    local TitleText = Label(TitleBar, {
-        Position = UDim2.fromOffset(42, 0), Size = UDim2.new(0, 200, 1, 0),
-        Font = Enum.Font.GothamBold, TextSize = 12, Text = "YouTube Cinema & Music",
+    Label(TitleBar, {
+        Position = UDim2.fromOffset(36, 0), Size = UDim2.new(1, -90, 1, 0),
+        Font = Enum.Font.GothamBold, TextSize = 12, Text = "Roblox Music Player",
     })
 
     local CloseBtn = Button(TitleBar, "X", {
         AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.fromOffset(22, 22),
     }, true)
 
-    local MinBtn = Button(TitleBar, "-", {
-        AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -34, 0.5, 0), Size = UDim2.fromOffset(22, 22),
-    }, true)
-
-    -- Draggable
-    local dragging, dragStart, startPos = false, nil, nil
-    TitleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = Frame.Position
-        end
-    end)
-    TrackConn(UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local d = input.Position - dragStart
-            Frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
-        end
-    end))
-    TitleBar.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-
-    -- Video Theater Screen Frame (16:9)
-    local TheaterScreen = New("Frame", {
-        Position = UDim2.fromOffset(10, 44), Size = UDim2.new(1, -20, 0, 168),
-        BackgroundColor3 = Color3.fromRGB(10, 10, 12), BorderSizePixel = 0, Parent = Frame,
-    }, { Corner(8), Rim(Theme.StrokeAlpha) })
-
-    local ScreenGlow = Label(TheaterScreen, {
-        Position = UDim2.fromScale(0.5, 0.38), AnchorPoint = Vector2.new(0.5, 0.5),
-        Font = Enum.Font.GothamBold, TextSize = 13, TextColor3 = Theme.Text,
-        Text = "YouTube Cinema Player",
-    })
-    local ScreenSub = Label(TheaterScreen, {
-        Position = UDim2.fromScale(0.5, 0.55), AnchorPoint = Vector2.new(0.5, 0.5),
-        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Dim,
-        Text = "Nhap ten phim hoac bai hat ben duoi de xem va nghe truc tiep",
-    })
-
-    local ScreenWave = New("Frame", {
-        Position = UDim2.fromScale(0.5, 0.74), AnchorPoint = Vector2.new(0.5, 0.5),
-        Size = UDim2.fromOffset(56, 16), BackgroundTransparency = 1, Parent = TheaterScreen,
-    })
-    local sBars = {}
-    for i = 1, 6 do
-        local b = New("Frame", {
-            Position = UDim2.new(0, (i - 1) * 9 + 3, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5),
-            Size = UDim2.fromOffset(4, 4), BackgroundColor3 = Color3.fromRGB(235, 45, 45), BorderSizePixel = 0,
-            Parent = ScreenWave,
-        }, { Corner(2) })
-        table.insert(sBars, b)
-    end
-
-    -- Controls row
-    local ControlsBar = New("Frame", {
-        Position = UDim2.fromOffset(10, 220), Size = UDim2.new(1, -20, 0, 28),
-        BackgroundTransparency = 1, Parent = Frame,
-    })
-
-    local PlayBtn = Button(ControlsBar, "Play", {
-        Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(54, 28),
-    }, true)
-
-    local VolSlider = New("TextButton", {
-        Position = UDim2.fromOffset(60, 0), Size = UDim2.new(0.3, 0, 1, 0),
-        BackgroundColor3 = Theme.Control, BorderSizePixel = 0, Text = "Vol: 80%",
-        Font = Enum.Font.GothamMedium, TextSize = 10, TextColor3 = Theme.Text,
-        Parent = ControlsBar,
-    }, { Corner(6) })
-
-    local SearchBox = New("TextBox", {
-        Position = UDim2.new(0.3, 68, 0, 0), Size = UDim2.new(0.7, -132, 1, 0),
-        BackgroundColor3 = Theme.Control, BorderSizePixel = 0, Text = "",
-        PlaceholderText = "Ten phim, video hoac link...",
-        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Text,
-        PlaceholderColor3 = Theme.Faint, Parent = ControlsBar,
-    }, { Corner(6) })
-
-    local GoBtn = Button(ControlsBar, "Play", {
-        AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(58, 28),
-    }, false)
-
-    -- Quick category row
-    local CatRow = New("Frame", {
-        Position = UDim2.fromOffset(10, 256), Size = UDim2.new(1, -20, 0, 24),
-        BackgroundTransparency = 1, Parent = Frame,
-    })
-
-    local qChannels = {
-        { Name = "Anime Vietsub", Query = "anime vietsub tap 1" },
-        { Name = "Nhac Tre Hot", Query = "nhac tre remix hot tiktok" },
-        { Name = "Lofi 24/7", Query = "lofi chill beats live" },
-        { Name = "Phim Hay", Query = "phim hanh dong hay nhat" },
-    }
-
-    for i, c in ipairs(qChannels) do
-        local btn = Button(CatRow, c.Name, {
-            Position = UDim2.new((i - 1) * 0.25, (i - 1) * 4, 0, 0),
-            Size = UDim2.new(0.25, -4, 1, 0),
-        }, true)
-        btn.MouseButton1Click:Connect(function()
-            SearchBox.Text = c.Query
-            ScreenGlow.Text = "Dang chieu: " .. c.Name
-            ScreenSub.Text = "Am thanh HD Cinema - Khong quang cao"
-            NexusLib.Audio:PlayUrl(c.Query, c.Name, "YouTube Cinema", function(ok)
-                if ok then PlayBtn.Text = "Pause" end
-            end)
-        end)
-    end
-
     local PanelApi = { Gui = Gui, Frame = Frame, Visible = true }
+    NexusLib.ActiveMusicPanel = PanelApi
     NexusLib.ActiveYouTubePanel = PanelApi
 
     function PanelApi:SetVisible(on)
         PanelApi.Visible = on
-        Frame.Visible = on
-        if on then
-            Tween(Frame, 0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
-                Position = UDim2.fromScale(0.5, 0.45), Size = UDim2.fromOffset(460, 316)
-            })
-        end
+        Gui.Enabled = on
+    end
+    CloseBtn.MouseButton1Click:Connect(function() PanelApi:SetVisible(false) end)
+
+    MakeDraggable(Frame, TitleBar)
+
+    -- Player Card inside Floating Window
+    local Card = New("Frame", {
+        Position = UDim2.fromOffset(12, 44), Size = UDim2.new(1, -24, 0, 110),
+        BackgroundColor3 = Color3.fromRGB(15, 15, 18), BorderSizePixel = 0, Parent = Frame,
+    }, { Corner(8), Rim(Theme.StrokeAlpha) })
+
+    local PTitle = Label(Card, {
+        Position = UDim2.fromOffset(12, 10), Size = UDim2.new(1, -110, 0, 18),
+        Font = Enum.Font.GothamBold, TextSize = 13, Text = NexusLib.Audio.CurrentTrack.Title or "Chua phat nhac",
+        TextTruncate = Enum.TextTruncate.AtEnd,
+    })
+    local PArtist = Label(Card, {
+        Position = UDim2.fromOffset(12, 28), Size = UDim2.new(1, -110, 0, 16),
+        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Dim,
+        Text = NexusLib.Audio.CurrentTrack.Artist or "Roblox Audio",
+        TextTruncate = Enum.TextTruncate.AtEnd,
+    })
+
+    local PTime = Label(Card, {
+        AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 10),
+        Font = Enum.Font.Code, TextSize = 11, TextColor3 = Theme.Dim, Text = "00:00 / 00:00",
+    })
+
+    local WaveBox = New("Frame", {
+        AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -12, 0, 28),
+        Size = UDim2.fromOffset(50, 16), BackgroundTransparency = 1, Parent = Card,
+    })
+    local wBars = {}
+    for i = 1, 5 do
+        local b = New("Frame", {
+            Position = UDim2.new(0, (i - 1) * 9 + 3, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5),
+            Size = UDim2.fromOffset(3, 4), BackgroundColor3 = Theme.Accent, BorderSizePixel = 0,
+            Parent = WaveBox,
+        }, { Corner(1) })
+        table.insert(wBars, b)
     end
 
-    CloseBtn.MouseButton1Click:Connect(function() PanelApi:SetVisible(false) end)
-    local isMin = false
-    MinBtn.MouseButton1Click:Connect(function()
-        isMin = not isMin
-        Tween(Frame, 0.25, nil, nil, {
-            Size = isMin and UDim2.fromOffset(240, 36) or UDim2.fromOffset(460, 316)
+    local ScrubberBg = New("Frame", {
+        Position = UDim2.fromOffset(12, 54), Size = UDim2.new(1, -24, 0, 4),
+        BackgroundColor3 = Color3.fromRGB(35, 35, 40), BorderSizePixel = 0, Parent = Card,
+    }, { Corner(2) })
+    local ScrubberFill = New("Frame", {
+        Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Parent = ScrubberBg,
+    }, { Corner(2) })
+
+    local CtrlRow = New("Frame", {
+        Position = UDim2.fromOffset(12, 68), Size = UDim2.new(1, -24, 0, 32),
+        BackgroundTransparency = 1, Parent = Card,
+    }, {
+        New("UIListLayout", {
+            FillDirection = Enum.FillDirection.Horizontal,
+            VerticalAlignment = Enum.VerticalAlignment.Center,
+            Padding = UDim.new(0, 8),
         })
-    end)
+    })
+
+    local PlayBtn = Button(CtrlRow, NexusLib.Audio.IsPlaying and "Pause" or "Play", { Size = UDim2.fromOffset(72, 28) }, true)
+    local ReplayBtn = Button(CtrlRow, "Replay", { Size = UDim2.fromOffset(66, 28) }, true)
+    local LoopBtn = Button(CtrlRow, NexusLib.Audio.Looped and "Loop: ON" or "Loop: OFF", { Size = UDim2.fromOffset(78, 28) }, true)
 
     PlayBtn.MouseButton1Click:Connect(function()
-        local isPlaying = NexusLib.Audio:TogglePlay()
-        PlayBtn.Text = isPlaying and "Pause" or "Play"
+        local isP = NexusLib.Audio:TogglePlay()
+        PlayBtn.Text = isP and "Pause" or "Play"
+    end)
+    ReplayBtn.MouseButton1Click:Connect(function()
+        NexusLib.Audio:Replay()
+        PlayBtn.Text = "Pause"
+    end)
+    LoopBtn.MouseButton1Click:Connect(function()
+        NexusLib.Audio:SetLoop(not NexusLib.Audio.Looped)
+        LoopBtn.Text = NexusLib.Audio.Looped and "Loop: ON" or "Loop: OFF"
     end)
 
-    local curVol = 80
-    VolSlider.MouseButton1Click:Connect(function()
-        curVol = (curVol >= 100) and 20 or (curVol + 20)
-        VolSlider.Text = "Vol: " .. curVol .. "%"
-        NexusLib.Audio:SetVolume(curVol / 100)
+    -- Quick Input Row below Card
+    local InputRow = New("Frame", {
+        Position = UDim2.fromOffset(12, 162), Size = UDim2.new(1, -24, 0, 32),
+        BackgroundTransparency = 1, Parent = Frame,
+    })
+    local SoundInput = New("TextBox", {
+        Position = UDim2.fromOffset(0, 0), Size = UDim2.new(1, -90, 1, 0),
+        BackgroundColor3 = Color3.fromRGB(15, 15, 18), BorderSizePixel = 0,
+        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Text,
+        PlaceholderColor3 = Theme.Dim, PlaceholderText = "Nhap Sound ID...",
+        Text = "", ClearTextOnFocus = false, Parent = InputRow,
+    }, { Corner(6), Rim(Theme.StrokeAlpha) })
+    New("UIPadding", { PaddingLeft = UDim.new(0, 8), Parent = SoundInput })
+
+    local PlayIdBtn = Button(InputRow, "Phat ID", {
+        AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(80, 32),
+    }, true)
+
+    PlayIdBtn.MouseButton1Click:Connect(function()
+        local id = SoundInput.Text
+        if id and id ~= "" then
+            NexusLib.Audio:PlayAsset(id)
+        end
     end)
 
-    GoBtn.MouseButton1Click:Connect(function()
-        local q = SearchBox.Text
-        if not q or #q < 2 then return end
-        ScreenGlow.Text = "Dang mo: " .. q
-        ScreenSub.Text = "Dang ket noi luong video YouTube..."
-        NexusLib.Audio:PlayUrl(q, q, "YouTube Cinema", function(ok)
-            if ok then
-                ScreenGlow.Text = "Dang chieu: " .. q
-                ScreenSub.Text = "Phat truc tiep - Khong quang cao"
-                PlayBtn.Text = "Pause"
+    TrackCleanup(RunService.RenderStepped:Connect(function()
+        if not Gui.Parent or not Gui.Enabled then return end
+        local s = NexusLib.Audio.Sound
+        if s and s.Parent then
+            local pos = s.TimePosition or 0
+            local len = s.TimeLength or 0
+            if len > 0 then
+                ScrubberFill.Size = UDim2.new(math.clamp(pos / len, 0, 1), 0, 1, 0)
+                local m1, s1 = math.floor(pos / 60), math.floor(pos % 60)
+                local m2, s2 = math.floor(len / 60), math.floor(len % 60)
+                PTime.Text = string.format("%02d:%02d / %02d:%02d", m1, s1, m2, s2)
+            else
+                ScrubberFill.Size = UDim2.new(0, 0, 1, 0)
+                PTime.Text = "00:00 / 00:00"
             end
-        end)
-    end)
-
-    TrackConn(RunService.RenderStepped:Connect(function()
-        if not Gui.Parent then return end
-        if NexusLib.Audio.IsPlaying and Frame.Visible then
+        end
+        if NexusLib.Audio.IsPlaying then
             local t = os.clock() * 10
-            for i, b in ipairs(sBars) do
-                local h = math.clamp(math.floor(math.abs(math.sin(t + i * 0.9)) * 14) + 3, 3, 16)
-                b.Size = UDim2.fromOffset(4, h)
+            for i, b in ipairs(wBars) do
+                local h = math.clamp(math.floor(math.abs(math.sin(t + i * 0.9)) * 12) + 3, 3, 15)
+                b.Size = UDim2.fromOffset(3, h)
             end
         end
     end))
 
+    NexusLib.Audio.OnTrackChanged = function(t)
+        pcall(function()
+            PTitle.Text = t.Title
+            PArtist.Text = t.Artist .. (t.AssetId ~= "" and (" · ID: " .. t.AssetId) or "")
+            PlayBtn.Text = "Pause"
+        end)
+    end
+
     return PanelApi
 end
+NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
 
     function Window:CreateMusicTab(tabName)
         local MusicTab = Window:CreateTab(tabName or "Music")
         local Audio = NexusLib.Audio
 
-        -- Embed the YouTube Cinema Display Screen directly inside the Tab Page
-        local ScreenCard = New("Frame", {
-            Size = UDim2.new(1, 0, 0, 186),
-            BackgroundColor3 = Color3.fromRGB(8, 8, 10),
+        -- Player Card Container
+        local PlayerCard = New("Frame", {
+            Size = UDim2.new(1, 0, 0, 160),
+            BackgroundColor3 = Color3.fromRGB(12, 12, 15),
             BorderSizePixel = 0,
             LayoutOrder = 1,
             Parent = MusicTab.Page,
         }, { Corner(10), Rim(Theme.StrokeAlpha) })
 
-        -- Top Bar inside Screen
-        local YtHeader = New("Frame", {
-            Position = UDim2.fromOffset(10, 8), Size = UDim2.new(1, -20, 0, 22),
-            BackgroundTransparency = 1, Parent = ScreenCard,
+        -- Top Header inside Player Card
+        local CardHeader = New("Frame", {
+            Position = UDim2.fromOffset(12, 10), Size = UDim2.new(1, -24, 0, 20),
+            BackgroundTransparency = 1, Parent = PlayerCard,
         })
-        local YtIcon = New("Frame", {
-            Position = UDim2.fromOffset(0, 2), Size = UDim2.fromOffset(24, 18),
-            BackgroundColor3 = Color3.fromRGB(235, 45, 45), BorderSizePixel = 0, Parent = YtHeader,
+        local Dot = New("Frame", {
+            Position = UDim2.fromOffset(0, 5), Size = UDim2.fromOffset(8, 8),
+            BackgroundColor3 = Theme.Accent, BorderSizePixel = 0, Parent = CardHeader,
         }, { Corner(4) })
-        Label(YtIcon, {
-            Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5),
-            Text = ">", Font = Enum.Font.GothamBold, TextSize = 10, TextColor3 = Theme.White,
+        Label(CardHeader, {
+            Position = UDim2.fromOffset(16, 0), Size = UDim2.new(0, 180, 1, 0),
+            Font = Enum.Font.GothamBold, TextSize = 11, TextColor3 = Theme.Accent,
+            Text = "ROBLOX NATIVE AUDIO",
         })
-        local ScreenTitle = Label(YtHeader, {
-            Position = UDim2.fromOffset(32, 0), Size = UDim2.new(1, -120, 1, 0),
-            Font = Enum.Font.GothamBold, TextSize = 12, Text = "YouTube Cinema Player",
+        local DurationLabel = Label(CardHeader, {
+            AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0),
+            Font = Enum.Font.Code, TextSize = 11, TextColor3 = Theme.Dim,
+            Text = "00:00 / 00:00",
+        })
+
+        -- Center Info Area
+        local InfoArea = New("Frame", {
+            Position = UDim2.fromOffset(12, 34), Size = UDim2.new(1, -24, 0, 60),
+            BackgroundColor3 = Color3.fromRGB(18, 18, 22), BorderSizePixel = 0, Parent = PlayerCard,
+        }, { Corner(8) })
+
+        local TrackTitle = Label(InfoArea, {
+            Position = UDim2.new(0, 14, 0, 10), Size = UDim2.new(1, -120, 0, 20),
+            Font = Enum.Font.GothamBold, TextSize = 14, TextColor3 = Theme.Text,
+            Text = Audio.CurrentTrack and Audio.CurrentTrack.Title or "Chua phat nhac",
             TextTruncate = Enum.TextTruncate.AtEnd,
         })
-        local ScreenDuration = Label(YtHeader, {
-            AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0),
-            Font = Enum.Font.Code, TextSize = 10, TextColor3 = Theme.Dim, Text = "00:00 / 00:00",
-        })
-
-        -- Center Video Area
-        local CenterArea = New("Frame", {
-            Position = UDim2.fromOffset(10, 34), Size = UDim2.new(1, -20, 0, 114),
-            BackgroundColor3 = Color3.fromRGB(15, 15, 18), BorderSizePixel = 0, Parent = ScreenCard,
-        }, { Corner(6) })
-
-        local PlayingTitle = Label(CenterArea, {
-            Position = UDim2.fromScale(0.5, 0.35), AnchorPoint = Vector2.new(0.5, 0.5),
-            Font = Enum.Font.GothamBold, TextSize = 13, TextColor3 = Theme.Text,
-            Text = "YouTube In-Game Player", TextXAlignment = Enum.TextXAlignment.Center,
-        })
-        local PlayingSub = Label(CenterArea, {
-            Position = UDim2.fromScale(0.5, 0.55), AnchorPoint = Vector2.new(0.5, 0.5),
+        local TrackArtist = Label(InfoArea, {
+            Position = UDim2.new(0, 14, 0, 32), Size = UDim2.new(1, -120, 0, 16),
             Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Dim,
-            Text = "Nhap ten video / phim hoac chon ben duoi de phat ngay",
-            TextXAlignment = Enum.TextXAlignment.Center,
+            Text = Audio.CurrentTrack and (Audio.CurrentTrack.Artist .. (Audio.CurrentTrack.AssetId ~= "" and (" · ID: " .. Audio.CurrentTrack.AssetId) or "")) or "Chon bai hat ben duoi de nghe ngay",
+            TextTruncate = Enum.TextTruncate.AtEnd,
         })
 
-        -- Animated sound wave
-        local VideoWave = New("Frame", {
-            Position = UDim2.fromScale(0.5, 0.78), AnchorPoint = Vector2.new(0.5, 0.5),
-            Size = UDim2.fromOffset(56, 16), BackgroundTransparency = 1, Parent = CenterArea,
+        -- Animated sound wave bars on right of InfoArea
+        local WaveHolder = New("Frame", {
+            AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -14, 0.5, 0),
+            Size = UDim2.fromOffset(60, 24), BackgroundTransparency = 1, Parent = InfoArea,
         })
-        local sBars = {}
+        local cBars = {}
         for i = 1, 6 do
             local b = New("Frame", {
-                Position = UDim2.new(0, (i - 1) * 9 + 3, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5),
-                Size = UDim2.fromOffset(4, 4), BackgroundColor3 = Color3.fromRGB(235, 45, 45), BorderSizePixel = 0,
-                Parent = VideoWave,
+                Position = UDim2.new(0, (i - 1) * 9 + 4, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5),
+                Size = UDim2.fromOffset(4, 4), BackgroundColor3 = Theme.Accent, BorderSizePixel = 0,
+                Parent = WaveHolder,
             }, { Corner(2) })
-            table.insert(sBars, b)
+            table.insert(cBars, b)
         end
 
-        -- Progress bar
-        local ProgressBg = New("Frame", {
-            Position = UDim2.fromOffset(10, 154), Size = UDim2.new(1, -20, 0, 4),
-            BackgroundColor3 = Color3.fromRGB(35, 35, 40), BorderSizePixel = 0, Parent = ScreenCard,
+        -- Progress Bar
+        local ScrubberBg = New("Frame", {
+            Position = UDim2.fromOffset(12, 102), Size = UDim2.new(1, -24, 0, 4),
+            BackgroundColor3 = Color3.fromRGB(35, 35, 42), BorderSizePixel = 0, Parent = PlayerCard,
         }, { Corner(2) })
-        local ProgressBar = New("Frame", {
-            Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = Color3.fromRGB(235, 45, 45),
-            BorderSizePixel = 0, Parent = ProgressBg,
+        local ScrubberFill = New("Frame", {
+            Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = Theme.Accent,
+            BorderSizePixel = 0, Parent = ScrubberBg,
         }, { Corner(2) })
 
-        -- Mini control bar below Screen
-        local ControlsBar = New("Frame", {
-            Position = UDim2.fromOffset(10, 160), Size = UDim2.new(1, -20, 0, 22),
-            BackgroundTransparency = 1, Parent = ScreenCard,
+        -- Controls row
+        local Ctrls = New("Frame", {
+            Position = UDim2.fromOffset(12, 114), Size = UDim2.new(1, -24, 0, 36),
+            BackgroundTransparency = 1, Parent = PlayerCard,
+        }, {
+            New("UIListLayout", {
+                FillDirection = Enum.FillDirection.Horizontal,
+                HorizontalAlignment = Enum.HorizontalAlignment.Left,
+                VerticalAlignment = Enum.VerticalAlignment.Center,
+                Padding = UDim.new(0, 6),
+            })
         })
-        local PlayToggleBtn = Button(ControlsBar, "Play", {
-            Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(48, 22),
+
+        local PlayToggleBtn = Button(Ctrls, Audio.IsPlaying and "Tam dung" or "Phat tiep", {
+            Size = UDim2.fromOffset(80, 28),
         }, true)
-        local PopoutBtn = Button(ControlsBar, "Man Hinh Noi (Floating)", {
-            AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(140, 22),
+        local ReplayBtn = Button(Ctrls, "Choi lai", {
+            Size = UDim2.fromOffset(68, 28),
+        }, true)
+        local LoopBtn = Button(Ctrls, Audio.Looped and "Lap: Bat" or "Lap: Tat", {
+            Size = UDim2.fromOffset(72, 28),
+        }, true)
+        local CopyIdBtn = Button(Ctrls, "Copy ID", {
+            Size = UDim2.fromOffset(68, 28),
+        }, true)
+        local FloatBtn = Button(Ctrls, "Cua so noi", {
+            Size = UDim2.fromOffset(76, 28),
         }, true)
 
         PlayToggleBtn.MouseButton1Click:Connect(function()
             local isP = Audio:TogglePlay()
-            PlayToggleBtn.Text = isP and "Pause" or "Play"
+            PlayToggleBtn.Text = isP and "Tam dung" or "Phat tiep"
         end)
-
-        PopoutBtn.MouseButton1Click:Connect(function()
-            local p = NexusLib:CreateYouTubePanel()
+        ReplayBtn.MouseButton1Click:Connect(function()
+            Audio:Replay()
+            PlayToggleBtn.Text = "Tam dung"
+        end)
+        LoopBtn.MouseButton1Click:Connect(function()
+            Audio:SetLoop(not Audio.Looped)
+            LoopBtn.Text = Audio.Looped and "Lap: Bat" or "Lap: Tat"
+        end)
+        CopyIdBtn.MouseButton1Click:Connect(function()
+            local id = Audio.CurrentTrack and Audio.CurrentTrack.AssetId or ""
+            if id ~= "" then
+                pcall(function()
+                    if setclipboard then setclipboard(id) end
+                end)
+                NexusLib:Notify({ Title = "Roblox Audio", Content = "Da sao chep ID: " .. id })
+            else
+                NexusLib:Notify({ Title = "Roblox Audio", Content = "Chua co Sound ID dang phat!" })
+            end
+        end)
+        FloatBtn.MouseButton1Click:Connect(function()
+            local p = NexusLib:CreateMusicPanel()
             p:SetVisible(true)
-            NexusLib:Notify({ Title = "YouTube", Content = "Da mo man hinh YouTube Cinema noi!" })
+            NexusLib:Notify({ Title = "Roblox Audio", Content = "Da mo cua so noi am thanh!" })
         end)
 
-        Audio.OnTrackChanged = function(t)
-            pcall(function()
-                ScreenTitle.Text = t.Title
-                PlayingTitle.Text = t.Title
-                PlayingSub.Text = t.Artist .. " - Dang phat khong quang cao"
-                PlayToggleBtn.Text = "Pause"
-            end)
-        end
-
-        TrackConn(RunService.RenderStepped:Connect(function()
-            if not MusicTab.Page.Parent then return end
-            if Audio.IsPlaying and MusicTab.Page.Visible then
+        TrackCleanup(RunService.RenderStepped:Connect(function()
+            if not MusicTab.Page.Parent or not MusicTab.Page.Visible then return end
+            local s = Audio.Sound
+            if s and s.Parent then
+                local pos = s.TimePosition or 0
+                local len = s.TimeLength or 0
+                if len > 0 then
+                    ScrubberFill.Size = UDim2.new(math.clamp(pos / len, 0, 1), 0, 1, 0)
+                    local m1, s1 = math.floor(pos / 60), math.floor(pos % 60)
+                    local m2, s2 = math.floor(len / 60), math.floor(len % 60)
+                    DurationLabel.Text = string.format("%02d:%02d / %02d:%02d", m1, s1, m2, s2)
+                else
+                    ScrubberFill.Size = UDim2.new(0, 0, 1, 0)
+                    DurationLabel.Text = "00:00 / 00:00"
+                end
+            end
+            if Audio.IsPlaying then
                 local t = os.clock() * 10
-                for i, b in ipairs(sBars) do
+                for i, b in ipairs(cBars) do
                     local h = math.clamp(math.floor(math.abs(math.sin(t + i * 0.9)) * 14) + 3, 3, 16)
                     b.Size = UDim2.fromOffset(4, h)
-                end
-                if Audio.Sound and Audio.Sound.TimeLength > 0 then
-                    local frac = math.clamp(Audio.Sound.TimePosition / Audio.Sound.TimeLength, 0, 1)
-                    ProgressBar.Size = UDim2.new(frac, 0, 1, 0)
-                    local curM = math.floor(Audio.Sound.TimePosition / 60)
-                    local curS = math.floor(Audio.Sound.TimePosition % 60)
-                    local totM = math.floor(Audio.Sound.TimeLength / 60)
-                    local totS = math.floor(Audio.Sound.TimeLength % 60)
-                    ScreenDuration.Text = string.format("%02d:%02d / %02d:%02d", curM, curS, totM, totS)
                 end
             end
         end))
 
-        -- Search & Quick Stations Section
-        local SearchSec = MusicTab:CreateSection("Tim Kiem & Kenh Phim / Nhac")
-        local searchTxt = ""
-        SearchSec:CreateInput({
-            Name = "Tim Kiem Phim / Nhac",
-            Placeholder = "Nhap ten phim hoac bai hat muon xem...",
-            Callback = function(t) searchTxt = t end,
-        })
+        Audio.OnTrackChanged = function(t)
+            pcall(function()
+                TrackTitle.Text = t.Title
+                TrackArtist.Text = t.Artist .. (t.AssetId ~= "" and (" · ID: " .. t.AssetId) or "")
+                PlayToggleBtn.Text = "Tam dung"
+            end)
+        end
 
-        SearchSec:CreateActionRow({
-            Title = "Thao Tac Tim Kiem",
-            Buttons = {
-                {
-                    Text = "Phat Video / Phim",
-                    Callback = function()
-                        if not searchTxt or #searchTxt < 2 then
-                            NexusLib:Notify({ Title = "YouTube", Content = "Vui long nhap ten phim/video truoc!" })
-                            return
-                        end
-                        NexusLib:Notify({ Title = "YouTube", Content = "Dang mo: " .. searchTxt })
-                        PlayingTitle.Text = "Dang tai: " .. searchTxt
-                        PlayingSub.Text = "Dang ket noi luong YouTube..."
-                        Audio:PlayUrl(searchTxt, searchTxt, "YouTube Cinema", function(ok)
-                            if ok then
-                                PlayingTitle.Text = searchTxt
-                                PlayingSub.Text = "Phat truc tiep - Khong quang cao"
-                                PlayToggleBtn.Text = "Pause"
-                            end
-                        end)
-                    end
-                },
-                {
-                    Text = "Mo Panel Noi",
-                    Callback = function()
-                        NexusLib:CreateYouTubePanel():SetVisible(true)
-                    end
-                }
-            }
+        -- SECTION 1: Play by Roblox Sound ID
+        local IdSec = MusicTab:CreateSection("Phat Bang Roblox Sound ID")
+        local inputIdVal = ""
+        IdSec:CreateInput({
+            Name = "Nhap Roblox Sound ID",
+            Placeholder = "Vi du: 9043887091, 5410086218, 1837879082...",
+            Callback = function(val)
+                inputIdVal = val
+            end
         })
-
-        SearchSec:CreateDropdown({
-            Name = "Kenh Hot Chon Loc (Bam Xem Ngay)",
-            Options = {
-                "Anime Vietsub Tap 1",
-                "Nhac Tre Remix Hot TikTok",
-                "Lofi Chill Beats 24/7",
-                "Phim Hanh Dong Hay Nhat",
-                "Phonk Night Drive Bass",
-                "Hai Tet Cuoi Xuyen Tet"
-            },
-            Default = "Anime Vietsub Tap 1",
-            Callback = function(choice)
-                PlayingTitle.Text = "Dang tai: " .. choice
-                PlayingSub.Text = "Dang ket noi luong video..."
-                Audio:PlayUrl(choice, choice, "YouTube Cinema", function(ok)
-                    if ok then
-                        PlayingTitle.Text = choice
-                        PlayingSub.Text = "Dang phat truc tiep - Khong quang cao"
-                        PlayToggleBtn.Text = "Pause"
-                    end
-                end)
+        IdSec:CreateButton({
+            Name = "Phat Nhac Bang ID Nay",
+            Callback = function()
+                if inputIdVal and inputIdVal ~= "" then
+                    Audio:PlayAsset(inputIdVal)
+                else
+                    NexusLib:Notify({ Title = "Roblox Audio", Content = "Vui long nhap Sound ID truoc!" })
+                end
+            end
+        })
+        IdSec:CreateButton({
+            Name = "Dung Nhac (Stop)",
+            Callback = function()
+                Audio:Stop()
+                PlayToggleBtn.Text = "Phat tiep"
             end
         })
 
-        local VolSec = MusicTab:CreateSection("Cai Dat Am Luong")
-        VolSec:CreateSlider({
+        -- SECTION 2: Curated Roblox Library
+        local LibSec = MusicTab:CreateSection("Kho Nhac Roblox Tuyen Chon")
+        local presetNames = {}
+        for _, p in ipairs(Audio.Presets) do
+            table.insert(presetNames, p.Name)
+        end
+        LibSec:CreateDropdown({
+            Name = "Chon Bai Hat Co San",
+            Options = presetNames,
+            Default = presetNames[1],
+            Callback = function(choice)
+                for _, p in ipairs(Audio.Presets) do
+                    if p.Name == choice then
+                        Audio:PlayAsset(p.Id, p.Name, p.Artist)
+                        break
+                    end
+                end
+            end
+        })
+
+        for _, p in ipairs({
+            Audio.Presets[1], -- Lo-Fi Chill Beats
+            Audio.Presets[2], -- Crab Rave
+            Audio.Presets[3], -- Paradise Falls
+            Audio.Presets[4], -- Cyberpunk Synthwave
+            Audio.Presets[5], -- Electro Gaming Hype
+            Audio.Presets[9], -- Speed Rush EDM
+        }) do
+            if p then
+                LibSec:CreateButton({
+                    Name = "Phat: " .. p.Name,
+                    Callback = function()
+                        Audio:PlayAsset(p.Id, p.Name, p.Artist)
+                    end
+                })
+            end
+        end
+
+        -- SECTION 3: Audio Settings
+        local SettingSec = MusicTab:CreateSection("Cai Dat Am Thanh")
+        SettingSec:CreateSlider({
             Name = "Am Luong (Volume)",
             Min = 0, Max = 100, Default = 80,
             Callback = function(v) Audio:SetVolume(v / 100) end
+        })
+        SettingSec:CreateSlider({
+            Name = "Toc Do / Cao Do (Speed / Pitch)",
+            Min = 50, Max = 200, Default = 100,
+            Callback = function(v) Audio:SetPlaybackSpeed(v / 100) end
+        })
+        SettingSec:CreateToggle({
+            Name = "Tu Dong Lap Lai (Auto Loop)",
+            Default = false,
+            Callback = function(v)
+                Audio:SetLoop(v)
+                LoopBtn.Text = v and "Lap: Bat" or "Lap: Tat"
+            end
         })
 
         return MusicTab
