@@ -630,6 +630,23 @@ NexusLib.Audio = AudioEngine
 local ISLAND_TOP, ISLAND_W, ISLAND_H = 14, 340, 40
 local ISLAND_OPEN_W, ISLAND_OPEN_H = 400, 82
 
+NexusLib.CurrentActivity = nil
+function NexusLib:SetActivity(act)
+    NexusLib.CurrentActivity = act
+    local island = NexusLib.ActiveIsland
+    if island then
+        if act and act ~= "" then
+            island:SetStatus(act)
+        else
+            local win = NexusLib.ActiveWindow
+            island:SetStatus((win and win.Visible) and "Active" or "Hidden")
+        end
+    end
+    if NexusLib.ActiveWindow then
+        NexusLib.ActiveWindow.LastStatus = act
+    end
+end
+
 function NexusLib:CreateDynamicIsland(config)
     config = config or {}
     DestroyExisting("Nexus_Island")
@@ -1032,7 +1049,13 @@ function NexusLib:CreateWindow(config)
             Tween(Frame, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
                 Position = restPos, Size = size, BackgroundTransparency = Theme.SurfaceAlpha,
             })
-            if island then island:SetStatus(Window.LastStatus or "Active") end
+            if island then
+                if NexusLib.CurrentActivity and NexusLib.CurrentActivity ~= "" then
+                    island:SetStatus(NexusLib.CurrentActivity)
+                else
+                    island:SetStatus(Window.LastStatus or "Active")
+                end
+            end
             NexusLib:Notify({ Title = "Nexus", Content = "Menu shown" })
         else
             local hideTarget = UDim2.new(restPos.X.Scale, restPos.X.Offset, 0, ISLAND_TOP + 2)
@@ -1044,7 +1067,11 @@ function NexusLib:CreateWindow(config)
             task.delay(0.3, function()
                 if island and not Window.Visible then
                     island:Gulp()
-                    island:SetStatus("Hidden")
+                    if NexusLib.CurrentActivity and NexusLib.CurrentActivity ~= "" then
+                        island:SetStatus(NexusLib.CurrentActivity)
+                    else
+                        island:SetStatus("Hidden")
+                    end
                 end
             end)
             task.delay(0.35, function()
@@ -1055,6 +1082,9 @@ function NexusLib:CreateWindow(config)
     end
     function Window:ToggleVisible()
         Window:SetVisible(not Window.Visible)
+    end
+    function Window:SetStatus(status)
+        NexusLib:SetActivity(status)
     end
     function Window:ResetPosition()
         restPos = UDim2.new(0.5, 0, 0, homeY + (Window.Pushed and (ISLAND_OPEN_H - ISLAND_H) or 0))
