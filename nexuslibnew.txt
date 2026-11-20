@@ -605,6 +605,259 @@ local function Button(parent, text, props, ghost)
 end
 
 --------------------------------------------------------------------------
+-- AUDIO / MEDIA ENGINE (YouTube, Roblox Sound ID, Local MP3, Direct Stream)
+--------------------------------------------------------------------------
+local AudioEngine = {
+    Sound = nil,
+    CurrentTrack = { Title = "No Audio Playing", Artist = "Nexus Radio", Source = "" },
+    IsPlaying = false,
+    Volume = 0.5,
+    Looped = false,
+    Presets = {
+        { Name = "Lo-Fi Study Beats", Id = "9043887091", Artist = "Lofi Girl / Chill" },
+        { Name = "Tokyo Drift Phonk", Id = "6991665487", Artist = "Drift Phonk" },
+        { Name = "Cyberpunk Synthwave", Id = "5410086218", Artist = "Retro Synth" },
+        { Name = "Peaceful Piano Chill", Id = "1839843632", Artist = "Piano Solos" },
+        { Name = "Gaming Dubstep Hype", Id = "1843404009", Artist = "Bass Hype" },
+        { Name = "Anime Chill Lofi", Id = "7028682024", Artist = "Anime Beats" },
+    },
+    OnTrackChanged = nil,
+    OnStateChanged = nil,
+}
+NexusLib.Audio = AudioEngine
+
+local function EnsureSound()
+    if AudioEngine.Sound and AudioEngine.Sound.Parent then
+        return AudioEngine.Sound
+    end
+    local s = Instance.new("Sound")
+    s.Name = "NexusAudioStream"
+    s.Volume = AudioEngine.Volume
+    s.Looped = AudioEngine.Looped
+    pcall(function() s.Parent = game:GetService("SoundService") end)
+    if not s.Parent then
+        pcall(function() s.Parent = workspace end)
+    end
+    AudioEngine.Sound = s
+
+    TrackCleanup(function()
+        if s and s.Parent then
+            pcall(function() s:Stop(); s:Destroy() end)
+        end
+    end)
+
+    s.Ended:Connect(function()
+        if not AudioEngine.Looped then
+            AudioEngine.IsPlaying = false
+            if type(AudioEngine.OnStateChanged) == "function" then
+                pcall(AudioEngine.OnStateChanged, false)
+            end
+            if NexusLib.ActiveIsland and type(NexusLib.ActiveIsland.UpdateMediaVisuals) == "function" then
+                NexusLib.ActiveIsland:UpdateMediaVisuals()
+            end
+        end
+    end)
+
+    return s
+end
+
+function AudioEngine:PlayAsset(assetId, title, artist)
+    local s = EnsureSound()
+    local cleanId = tostring(assetId):gsub("%D", "")
+    s.SoundId = "rbxassetid://" .. cleanId
+    s.TimePosition = 0
+    s:Play()
+    AudioEngine.IsPlaying = true
+    AudioEngine.CurrentTrack = {
+        Title = title or ("Asset " .. cleanId),
+        Artist = artist or "Roblox Audio",
+        Source = "rbxassetid://" .. cleanId
+    }
+    if type(AudioEngine.OnTrackChanged) == "function" then
+        pcall(AudioEngine.OnTrackChanged, AudioEngine.CurrentTrack)
+    end
+    if type(AudioEngine.OnStateChanged) == "function" then
+        pcall(AudioEngine.OnStateChanged, true)
+    end
+    if NexusLib.ActiveIsland and type(NexusLib.ActiveIsland.UpdateMediaVisuals) == "function" then
+        NexusLib.ActiveIsland:UpdateMediaVisuals()
+    end
+    NexusLib:Notify({ Title = "Music Player", Content = "Playing: " .. AudioEngine.CurrentTrack.Title })
+    return true
+end
+
+function AudioEngine:PlayLocal(fileName, title, artist)
+    local getAsset = getcustomasset or getsynasset
+    if type(getAsset) ~= "function" then
+        NexusLib:Notify({ Title = "Audio Error", Content = "Executor lacks getcustomasset" })
+        return false
+    end
+    if type(isfile) == "function" and not isfile(fileName) then
+        NexusLib:Notify({ Title = "Audio Error", Content = "File not found: " .. tostring(fileName) })
+        return false
+    end
+    local s = EnsureSound()
+    local ok, assetUri = pcall(getAsset, fileName)
+    if not ok or not assetUri then
+        NexusLib:Notify({ Title = "Audio Error", Content = "Failed to load custom asset" })
+        return false
+    end
+    s.SoundId = assetUri
+    s.TimePosition = 0
+    s:Play()
+    AudioEngine.IsPlaying = true
+    AudioEngine.CurrentTrack = {
+        Title = title or fileName,
+        Artist = artist or "Local File",
+        Source = fileName
+    }
+    if type(AudioEngine.OnTrackChanged) == "function" then
+        pcall(AudioEngine.OnTrackChanged, AudioEngine.CurrentTrack)
+    end
+    if type(AudioEngine.OnStateChanged) == "function" then
+        pcall(AudioEngine.OnStateChanged, true)
+    end
+    if NexusLib.ActiveIsland and type(NexusLib.ActiveIsland.UpdateMediaVisuals) == "function" then
+        NexusLib.ActiveIsland:UpdateMediaVisuals()
+    end
+    NexusLib:Notify({ Title = "Music Player", Content = "Playing: " .. AudioEngine.CurrentTrack.Title })
+    return true
+end
+
+function AudioEngine:PlayUrl(url, title, artist, onFinish)
+    local req = (syn and syn.request) or http_request or request or (http and http.request)
+    local getAsset = getcustomasset or getsynasset
+    if type(req) ~= "function" or type(writefile) ~= "function" or type(getAsset) ~= "function" then
+        NexusLib:Notify({ Title = "Audio Error", Content = "Executor lacks HTTP/file capabilities" })
+        if onFinish then onFinish(false, "Executor lacks HTTP/file capabilities") end
+        return false
+    end
+
+    NexusLib:Notify({ Title = "Music Player", Content = "Resolving & downloading audio..." })
+
+    task.spawn(function()
+        local streamUrl = url
+        local isYoutube = url:find("youtube%.com") or url:find("youtu%.be")
+        
+        if isYoutube then
+            local endpoints = {
+                "https://api.cobalt.tools/",
+                "https://cobalt-api.kwiatekm.tokyo/"
+            }
+            local resolved = false
+            for _, ep in ipairs(endpoints) do
+                local ok, res = pcall(function()
+                    return req({
+                        Url = ep,
+                        Method = "POST",
+                        Headers = {
+                            ["Accept"] = "application/json",
+                            ["Content-Type"] = "application/json"
+                        },
+                        Body = game:GetService("HttpService"):JSONEncode({
+                            url = url,
+                            downloadMode = "audio",
+                            audioFormat = "mp3"
+                        })
+                    })
+                end)
+                if ok and res and res.Body then
+                    local decOk, data = pcall(function()
+                        return game:GetService("HttpService"):JSONDecode(res.Body)
+                    end)
+                    if decOk and data and (data.url or (data.status == "tunnel" and data.url)) then
+                        streamUrl = data.url
+                        resolved = true
+                        break
+                    end
+                end
+            end
+            if not resolved then
+                NexusLib:Notify({ Title = "YouTube Error", Content = "Could not convert YouTube link" })
+                if onFinish then onFinish(false, "Failed to resolve YouTube audio") end
+                return
+            end
+        end
+
+        local dlOk, dlRes = pcall(function()
+            return req({ Url = streamUrl, Method = "GET" })
+        end)
+        local body = dlOk and dlRes and (dlRes.Body or dlRes.body)
+        if type(body) == "string" and #body > 1000 then
+            pcall(function() writefile("nexus_cached_track.mp3", body) end)
+            local s = EnsureSound()
+            s.SoundId = getAsset("nexus_cached_track.mp3")
+            s.TimePosition = 0
+            s:Play()
+            AudioEngine.IsPlaying = true
+            AudioEngine.CurrentTrack = {
+                Title = title or (isYoutube and "YouTube Audio" or "Direct Audio Stream"),
+                Artist = artist or (isYoutube and "YouTube" or "Web Stream"),
+                Source = url
+            }
+            if type(AudioEngine.OnTrackChanged) == "function" then
+                pcall(AudioEngine.OnTrackChanged, AudioEngine.CurrentTrack)
+            end
+            if type(AudioEngine.OnStateChanged) == "function" then
+                pcall(AudioEngine.OnStateChanged, true)
+            end
+            if NexusLib.ActiveIsland and type(NexusLib.ActiveIsland.UpdateMediaVisuals) == "function" then
+                NexusLib.ActiveIsland:UpdateMediaVisuals()
+            end
+            NexusLib:Notify({ Title = "Music Player", Content = "Playing: " .. AudioEngine.CurrentTrack.Title })
+            if onFinish then onFinish(true) end
+        else
+            NexusLib:Notify({ Title = "Download Error", Content = "Failed to download audio bytes" })
+            if onFinish then onFinish(false, "Failed to download audio") end
+        end
+    end)
+    return true
+end
+
+function AudioEngine:TogglePlay()
+    local s = EnsureSound()
+    if AudioEngine.IsPlaying then
+        s:Pause()
+        AudioEngine.IsPlaying = false
+    else
+        s:Resume()
+        AudioEngine.IsPlaying = true
+    end
+    if type(AudioEngine.OnStateChanged) == "function" then
+        pcall(AudioEngine.OnStateChanged, AudioEngine.IsPlaying)
+    end
+    if NexusLib.ActiveIsland and type(NexusLib.ActiveIsland.UpdateMediaVisuals) == "function" then
+        NexusLib.ActiveIsland:UpdateMediaVisuals()
+    end
+    return AudioEngine.IsPlaying
+end
+
+function AudioEngine:Stop()
+    local s = EnsureSound()
+    s:Stop()
+    s.TimePosition = 0
+    AudioEngine.IsPlaying = false
+    if type(AudioEngine.OnStateChanged) == "function" then
+        pcall(AudioEngine.OnStateChanged, false)
+    end
+    if NexusLib.ActiveIsland and type(NexusLib.ActiveIsland.UpdateMediaVisuals) == "function" then
+        NexusLib.ActiveIsland:UpdateMediaVisuals()
+    end
+end
+
+function AudioEngine:SetVolume(vol)
+    AudioEngine.Volume = math.clamp(vol, 0, 1)
+    local s = EnsureSound()
+    s.Volume = AudioEngine.Volume
+end
+
+function AudioEngine:SetLoop(loop)
+    AudioEngine.Looped = loop
+    local s = EnsureSound()
+    s.Looped = loop
+end
+
+--------------------------------------------------------------------------
 -- DYNAMIC ISLAND
 --------------------------------------------------------------------------
 local ISLAND_TOP, ISLAND_W, ISLAND_H = 14, 340, 40
@@ -652,19 +905,55 @@ function NexusLib:CreateDynamicIsland(config)
         RichText = true,
         Text = "144 fps <font color=\"#5a5a62\">" .. DOT .. "</font> 19ms",
     })
+    -- Audio wave visualizer container
+    local WaveContainer = New("Frame", {
+        AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -34, 0.5, 0),
+        Size = UDim2.fromOffset(26, 16), BackgroundTransparency = 1, Visible = false, Parent = Bar,
+    })
+    local WaveBars = {}
+    for i = 1, 4 do
+        local wb = New("Frame", {
+            AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0, (i - 1) * 6 + 3, 0.5, 0),
+            Size = UDim2.fromOffset(3, 4), BackgroundColor3 = Color3.fromRGB(72, 215, 130), BorderSizePixel = 0,
+            Parent = WaveContainer,
+        }, { Corner(2) })
+        table.insert(WaveBars, wb)
+    end
+
     local Caret = Chevron(Bar, {
         AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -13, 0.5, 0),
     }, Theme.Faint)
 
-    -- drawer: Window controls
+    -- drawer: Media & Window controls
     local Drawer = New("Frame", {
         Position = UDim2.fromOffset(10, ISLAND_H + 2), Size = UDim2.new(1, -20, 0, 30),
         BackgroundTransparency = 1, Visible = false, Parent = Island,
     })
-    local HideBtn = Button(Drawer, "Hide UI", {
+
+    local MediaRow = New("Frame", {
+        Position = UDim2.fromOffset(0, 0), Size = UDim2.new(1, 0, 0, 26),
+        BackgroundTransparency = 1, Visible = false, Parent = Drawer,
+    })
+    local MediaPlayBtn = Button(MediaRow, "⏸", {
+        Position = UDim2.fromOffset(0, 0), Size = UDim2.fromOffset(30, 24),
+    }, true)
+    local MediaStopBtn = Button(MediaRow, "⏹", {
+        Position = UDim2.fromOffset(34, 0), Size = UDim2.fromOffset(30, 24),
+    }, true)
+    local MediaTrackLabel = Label(MediaRow, {
+        Position = UDim2.fromOffset(70, 0), Size = UDim2.new(1, -70, 1, 0),
+        Font = Enum.Font.GothamMedium, TextSize = 11, TextColor3 = Theme.Text,
+        Text = "No Audio Playing", TextTruncate = Enum.TextTruncate.AtEnd,
+    })
+
+    local WinRow = New("Frame", {
+        Position = UDim2.fromOffset(0, 0), Size = UDim2.new(1, 0, 0, 30),
+        BackgroundTransparency = 1, Parent = Drawer,
+    })
+    local HideBtn = Button(WinRow, "Hide UI", {
         AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.3, 0, 0.5, 0), Size = UDim2.new(0.58, 0, 1, 0),
     }, false)
-    local ResetBtn = Button(Drawer, "Center", {
+    local ResetBtn = Button(WinRow, "Center", {
         AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.8, 0, 0.5, 0), Size = UDim2.new(0.38, 0, 1, 0),
     }, true)
 
@@ -682,8 +971,10 @@ function NexusLib:CreateDynamicIsland(config)
                 end
             end)
         end
+        local targetH = ISLAND_OPEN_H
+        if IslandApi.HasMedia then targetH = 116 end
         Tween(Island, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
-            Size = on and UDim2.fromOffset(ISLAND_OPEN_W, ISLAND_OPEN_H) or UDim2.fromOffset(ISLAND_W, ISLAND_H),
+            Size = on and UDim2.fromOffset(ISLAND_OPEN_W, targetH) or UDim2.fromOffset(ISLAND_W, ISLAND_H),
         })
         if IslandCorner then
             Tween(IslandCorner, 0.35, nil, nil, { CornerRadius = UDim.new(0, on and 16 or 20) })
@@ -717,10 +1008,37 @@ function NexusLib:CreateDynamicIsland(config)
             })
         end)
     end
+    function IslandApi:UpdateMediaVisuals()
+        local hasTrack = AudioEngine.CurrentTrack and AudioEngine.CurrentTrack.Source ~= ""
+        IslandApi.HasMedia = hasTrack
+        WaveContainer.Visible = AudioEngine.IsPlaying
+        MediaRow.Visible = hasTrack
+        if hasTrack then
+            MediaTrackLabel.Text = AudioEngine.CurrentTrack.Title
+            MediaPlayBtn.Text = AudioEngine.IsPlaying and "⏸" or "▶"
+            WinRow.Position = UDim2.fromOffset(0, 30)
+            Drawer.Size = UDim2.new(1, -20, 0, 58)
+        else
+            WinRow.Position = UDim2.fromOffset(0, 0)
+            Drawer.Size = UDim2.new(1, -20, 0, 30)
+        end
+        if IslandApi.Expanded then
+            local openH = IslandApi.HasMedia and 116 or ISLAND_OPEN_H
+            Tween(Island, 0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
+                Size = UDim2.fromOffset(ISLAND_OPEN_W, openH),
+            })
+        end
+    end
 
     Bar.MouseButton1Click:Connect(function() IslandApi:SetExpanded(not IslandApi.Expanded) end)
     Island.MouseEnter:Connect(function() Tween(Island.UIStroke, 0.2, nil, nil, { Transparency = Theme.StrokeHover }) end)
     Island.MouseLeave:Connect(function() Tween(Island.UIStroke, 0.2, nil, nil, { Transparency = Theme.StrokeAlpha }) end)
+    MediaPlayBtn.MouseButton1Click:Connect(function()
+        AudioEngine:TogglePlay()
+    end)
+    MediaStopBtn.MouseButton1Click:Connect(function()
+        AudioEngine:Stop()
+    end)
     HideBtn.MouseButton1Click:Connect(function()
         if NexusLib.ActiveWindow then
             NexusLib.ActiveWindow:ToggleVisible()
@@ -740,6 +1058,13 @@ function NexusLib:CreateDynamicIsland(config)
         if not Gui.Parent then
             if statsConn then statsConn:Disconnect() end
             return
+        end
+        if AudioEngine.IsPlaying and WaveContainer.Visible then
+            local t = os.clock() * 9
+            for idx, bar in ipairs(WaveBars) do
+                local h = math.clamp(math.floor(math.abs(math.sin(t + idx * 1.1)) * 12) + 3, 3, 15)
+                bar.Size = UDim2.fromOffset(3, h)
+            end
         end
         frames = frames + 1
         if os.clock() - last >= 1 then
@@ -1059,6 +1384,136 @@ function NexusLib:CreateWindow(config)
     end))
 
     ---------------- tabs ----------------
+
+    function Window:CreateMusicTab(tabName)
+        local MusicTab = Window:CreateTab(tabName or "Music")
+        local Audio = NexusLib.Audio
+
+        local StatusSec = MusicTab:CreateSection("Now Playing")
+        local CurrentTrackLabel = StatusSec:CreateLabel({
+            Text = "Track: " .. Audio.CurrentTrack.Title .. " (" .. Audio.CurrentTrack.Artist .. ")"
+        })
+
+        Audio.OnTrackChanged = function(track)
+            pcall(function()
+                CurrentTrackLabel:Set("Track: " .. track.Title .. " (" .. track.Artist .. ")")
+            end)
+        end
+
+        StatusSec:CreateActionRow({
+            Title = "Playback Controls",
+            Buttons = {
+                {
+                    Text = "Play / Pause",
+                    Callback = function()
+                        local playing = Audio:TogglePlay()
+                        NexusLib:Notify({ Title = "Media", Content = playing and "Resumed playback" or "Paused playback" })
+                    end
+                },
+                {
+                    Text = "Stop",
+                    Callback = function()
+                        Audio:Stop()
+                        NexusLib:Notify({ Title = "Media", Content = "Stopped playback" })
+                    end
+                }
+            }
+        })
+
+        StatusSec:CreateSlider({
+            Name = "Volume",
+            Min = 0,
+            Max = 100,
+            Default = math.floor(Audio.Volume * 100),
+            Callback = function(val)
+                Audio:SetVolume(val / 100)
+            end
+        })
+
+        StatusSec:CreateToggle({
+            Name = "Loop Track",
+            Default = Audio.Looped,
+            Callback = function(on)
+                Audio:SetLoop(on)
+            end
+        })
+
+        local OnlineSec = MusicTab:CreateSection("YouTube & Audio Stream")
+        local urlInput = ""
+        OnlineSec:CreateInput({
+            Name = "Stream / YouTube URL",
+            Placeholder = "Paste YouTube link or direct MP3 URL...",
+            Callback = function(text)
+                urlInput = text
+            end
+        })
+
+        OnlineSec:CreateButton({
+            Name = "Play Online Link",
+            Text = "Play",
+            Callback = function()
+                if urlInput and #urlInput > 5 then
+                    NexusLib:Notify({ Title = "Media Player", Content = "Fetching stream..." })
+                    Audio:PlayUrl(urlInput, nil, nil, function(ok, err)
+                        if not ok then
+                            NexusLib:Notify({ Title = "Error", Content = tostring(err) })
+                        end
+                    end)
+                else
+                    NexusLib:Notify({ Title = "Media Player", Content = "Please enter a valid link first!" })
+                end
+            end
+        })
+
+        local PresetSec = MusicTab:CreateSection("Curated Radio (Roblox Catalog)")
+        local presetNames = {}
+        for _, p in ipairs(Audio.Presets) do
+            table.insert(presetNames, p.Name)
+        end
+
+        PresetSec:CreateDropdown({
+            Name = "Select Radio Station",
+            Options = presetNames,
+            Default = presetNames[1] or "Lo-Fi Study Beats",
+            Callback = function(choice)
+                for _, p in ipairs(Audio.Presets) do
+                    if p.Name == choice then
+                        Audio:PlayAsset(p.Id, p.Name, p.Artist)
+                        break
+                    end
+                end
+            end
+        })
+
+        local LocalSec = MusicTab:CreateSection("Local Audio / Asset ID")
+        local localNameInput = ""
+        LocalSec:CreateInput({
+            Name = "Custom Sound ID or MP3 File",
+            Placeholder = "Sound ID (e.g. 9043887091) or file.mp3...",
+            Callback = function(text)
+                localNameInput = text
+            end
+        })
+
+        LocalSec:CreateButton({
+            Name = "Play Custom Audio",
+            Text = "Play",
+            Callback = function()
+                if not localNameInput or #localNameInput == 0 then
+                    NexusLib:Notify({ Title = "Media Player", Content = "Input is empty!" })
+                    return
+                end
+                local cleanNum = localNameInput:match("(%d+)")
+                if cleanNum and #cleanNum >= 6 and not localNameInput:find("%.") then
+                    Audio:PlayAsset(cleanNum, "Sound " .. cleanNum, "Custom Asset")
+                else
+                    Audio:PlayLocal(localNameInput, localNameInput, "Local File")
+                end
+            end
+        })
+
+        return MusicTab
+    end
     function Window:CreateTab(name)
         local index = #Window.Tabs + 1
 
