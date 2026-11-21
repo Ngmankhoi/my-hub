@@ -737,10 +737,17 @@ function NexusLib:CreateDynamicIsland(config)
         end
     end
     function IslandApi:SetStatus(text)
+        text = tostring(text or "Active")
         Status.TextTransparency = 1
-        local targetX = 36 + NameLabel.TextBounds.X + 8
+        local nbX = (NameLabel.TextBounds.X > 0) and NameLabel.TextBounds.X or 42
+        local targetX = 36 + nbX + 8
         Status.Position = UDim2.fromOffset(targetX, 4)
         Status.Text = text
+        if text == "Fishing" or string.find(text, "Boss") then
+            Status.TextColor3 = Color3.fromRGB(110, 230, 150)
+        else
+            Status.TextColor3 = Theme.Dim
+        end
         Tween(Status, 0.28, nil, nil, { TextTransparency = 0, Position = UDim2.fromOffset(targetX, 0) })
     end
     function IslandApi:SetStatsVisible(visible)
