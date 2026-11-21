@@ -81,6 +81,31 @@ local NexusLib = {
 NexusLib.__index = NexusLib
 
 local Theme = NexusLib.Theme
+NexusLib.UserScaleMultiplier = 1.0
+
+function NexusLib:GetBaseScale()
+    local cam = workspace.CurrentCamera
+    local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+    if vp.X < 100 or vp.Y < 100 then
+        vp = Vector2.new(1280, 720)
+    end
+    local availW = math.max(260, vp.X - 24)
+    local availH = math.max(220, vp.Y - 24)
+    local scaleW = availW / 650
+    local scaleH = availH / 490
+    local autoScale = math.min(scaleW, scaleH)
+    if autoScale >= 0.98 then
+        return 1.0
+    end
+    return math.clamp(autoScale, 0.50, 1.0)
+end
+
+function NexusLib:GetResponsiveScale()
+    local base = NexusLib:GetBaseScale()
+    local mult = tonumber(NexusLib.UserScaleMultiplier) or 1.0
+    return math.clamp(base * mult, 0.45, 1.4)
+end
+
 
 --------------------------------------------------------------------------
 -- helpers
@@ -650,18 +675,25 @@ end
 function NexusLib:CreateDynamicIsland(config)
     config = config or {}
     DestroyExisting("Nexus_Island")
+    local scale = NexusLib:GetResponsiveScale()
     local Gui = New("ScreenGui", {
         Name = "Nexus_Island", DisplayOrder = 100000, ResetOnSpawn = false,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true, Parent = GetSafeGui(),
     })
 
+    local islandTop = math.floor(ISLAND_TOP * math.min(scale, 1.0))
     local Island = Surface("Frame", {
         AnchorPoint = Vector2.new(0.5, 0),
-        Position = UDim2.new(0.5, 0, 0, ISLAND_TOP),
+        Position = UDim2.new(0.5, 0, 0, islandTop),
         Size = UDim2.fromOffset(ISLAND_W, ISLAND_H),
         ClipsDescendants = true,
         Parent = Gui,
     }, 20)
+    local IslandScale = New("UIScale", {
+        Name = "IslandScale",
+        Scale = scale,
+        Parent = Island,
+    })
     local IslandCorner = Island:FindFirstChildOfClass("UICorner")
 
     local Bar = New("TextButton", {
@@ -711,7 +743,7 @@ function NexusLib:CreateDynamicIsland(config)
         AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.8, 0, 0.5, 0), Size = UDim2.new(0.38, 0, 1, 0),
     }, true)
 
-    local IslandApi = { Gui = Gui, Frame = Island, Expanded = false, ShowStats = true }
+    local IslandApi = { Gui = Gui, Frame = Island, Scale = IslandScale, Expanded = false, ShowStats = true }
     NexusLib.ActiveIsland = IslandApi
 
     function IslandApi:SetExpanded(on)
@@ -908,8 +940,9 @@ function NexusLib:CreateWindow(config)
     end
 
     DestroyExisting("Nexus_Window")
+    local scale = NexusLib:GetResponsiveScale()
     local size = config.Size or UDim2.fromOffset(NexusLib.DefaultWindowSize.X, NexusLib.DefaultWindowSize.Y)
-    local homeY = ISLAND_TOP + ISLAND_H + 16
+    local homeY = math.floor((ISLAND_TOP + ISLAND_H + 10) * math.min(scale, 1.0))
     local defaultPos = UDim2.new(0.5, 0, 0, homeY)
     local restPos = defaultPos
 
@@ -927,7 +960,13 @@ function NexusLib:CreateWindow(config)
         Parent = Gui,
     }, 14)
 
-    local Window = { Tabs = {}, CurrentTab = nil, Gui = Gui, Frame = Frame, Visible = true, Pushed = false }
+    local FrameScale = New("UIScale", {
+        Name = "FrameScale",
+        Scale = scale,
+        Parent = Frame,
+    })
+
+    local Window = { Tabs = {}, CurrentTab = nil, Gui = Gui, Frame = Frame, Scale = FrameScale, Visible = true, Pushed = false }
     NexusLib.ActiveWindow = Window
     local closeOpenDropdown = nil
     local function dismissDropdown()
@@ -1093,16 +1132,36 @@ function NexusLib:CreateWindow(config)
     function Window:SetStatus(status)
         NexusLib:SetActivity(status)
     end
+    function Window:SetScale(s)
+        s = math.clamp(tonumber(s) or 1.0, 0.45, 1.4)
+        local base = NexusLib:GetBaseScale() or 1.0
+        NexusLib.UserScaleMultiplier = s / base
+        if FrameScale then
+            Tween(FrameScale, 0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Scale = s })
+        end
+        if NexusLib.ActiveIsland and NexusLib.ActiveIsland.Scale then
+            Tween(NexusLib.ActiveIsland.Scale, 0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Scale = s })
+        end
+        task.defer(function() Window:ResetPosition() end)
+    end
+    function Window:GetScale()
+        return FrameScale and FrameScale.Scale or 1.0
+    end
     function Window:ResetPosition()
-        restPos = UDim2.new(0.5, 0, 0, homeY + (Window.Pushed and (ISLAND_OPEN_H - ISLAND_H) or 0))
+        local curScale = FrameScale and FrameScale.Scale or 1
+        local curHomeY = math.floor((ISLAND_TOP + ISLAND_H + 10) * math.min(curScale, 1.0))
+        local pushOffset = Window.Pushed and math.floor((ISLAND_OPEN_H - ISLAND_H) * math.min(curScale, 1.0)) or 0
+        restPos = UDim2.new(0.5, 0, 0, curHomeY + pushOffset)
         Tween(Frame, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Position = restPos })
     end
     function Window:PushDown(pushed)
         if pushed == Window.Pushed then return end
         Window.Pushed = pushed
         dismissDropdown()
-        local dy = pushed and (ISLAND_OPEN_H - ISLAND_H) or -(ISLAND_OPEN_H - ISLAND_H)
-        restPos = UDim2.new(restPos.X.Scale, restPos.X.Offset, restPos.Y.Scale, restPos.Y.Offset + dy)
+        local curScale = FrameScale and FrameScale.Scale or 1
+        local dy = (ISLAND_OPEN_H - ISLAND_H) * math.min(curScale, 1.0)
+        local deltaY = pushed and math.floor(dy) or -math.floor(dy)
+        restPos = UDim2.new(restPos.X.Scale, restPos.X.Offset, restPos.Y.Scale, restPos.Y.Offset + deltaY)
         if Window.Visible then
             Tween(Frame, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
                 Position = restPos,
@@ -1114,6 +1173,20 @@ function NexusLib:CreateWindow(config)
     end
     function Window:Destroy()
         Gui:Destroy()
+    end
+
+    local function onViewportChanged()
+        local newScale = NexusLib:GetResponsiveScale()
+        if FrameScale and math.abs(FrameScale.Scale - newScale) > 0.02 then
+            Tween(FrameScale, 0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Scale = newScale })
+            if NexusLib.ActiveIsland and NexusLib.ActiveIsland.Scale then
+                Tween(NexusLib.ActiveIsland.Scale, 0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { Scale = newScale })
+            end
+            Window:ResetPosition()
+        end
+    end
+    if workspace.CurrentCamera then
+        TrackConn(workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(onViewportChanged))
     end
 
     TrackConn(UserInputService.InputBegan:Connect(function(input, processed)
@@ -1482,10 +1555,10 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                 arrow:SetOpen(true, Theme.Text, Theme.Dim)
                 local width = math.max(120, field.AbsoluteSize.X)
                 local height = #options * 28 + 8
-                local ox = field.AbsolutePosition.X - Gui.AbsolutePosition.X
-                local oy = field.AbsolutePosition.Y - Gui.AbsolutePosition.Y
+                local curScale = (Window and Window.Scale and Window.Scale.Scale) or 1
                 menu = New("Frame", {
-                    Position = UDim2.fromOffset(ox + field.AbsoluteSize.X - width, oy + field.AbsoluteSize.Y + 6),
+                    AnchorPoint = Vector2.new(1, 0),
+                    Position = UDim2.fromOffset(field.AbsolutePosition.X + field.AbsoluteSize.X, field.AbsolutePosition.Y + field.AbsoluteSize.Y + 4),
                     Size = UDim2.fromOffset(width, 0),
                     BackgroundColor3 = Theme.Menu,
                     BorderSizePixel = 0,
@@ -1493,6 +1566,7 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                     ZIndex = 50,
                     Parent = Gui,
                 }, {
+                    New("UIScale", { Scale = curScale }),
                     Corner(9),
                     Rim(Theme.StrokeAlpha),
                     New("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }),
@@ -1606,10 +1680,10 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                 arrow:SetOpen(true, Theme.Text, Theme.Dim)
                 local width = math.max(130, field.AbsoluteSize.X)
                 local height = #options * 28 + 8
-                local ox = field.AbsolutePosition.X - Gui.AbsolutePosition.X
-                local oy = field.AbsolutePosition.Y - Gui.AbsolutePosition.Y
+                local curScale = (Window and Window.Scale and Window.Scale.Scale) or 1
                 menu = New("Frame", {
-                    Position = UDim2.fromOffset(ox + field.AbsoluteSize.X - width, oy + field.AbsoluteSize.Y + 6),
+                    AnchorPoint = Vector2.new(1, 0),
+                    Position = UDim2.fromOffset(field.AbsolutePosition.X + field.AbsoluteSize.X, field.AbsolutePosition.Y + field.AbsoluteSize.Y + 4),
                     Size = UDim2.fromOffset(width, 0),
                     BackgroundColor3 = Theme.Menu,
                     BorderSizePixel = 0,
@@ -1617,6 +1691,7 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                     ZIndex = 50,
                     Parent = Gui,
                 }, {
+                    New("UIScale", { Scale = curScale }),
                     Corner(9),
                     Rim(Theme.StrokeAlpha),
                     New("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }),
