@@ -2090,7 +2090,7 @@ end
 
 pcall(function() getgenv().NexusLib = NexusLib end)
 
-if not _G.NEXUS_LIB_ONLY and not (shared and shared.NEXUS_LIB_ONLY) then
+if _G.NEXUS_RUN_DEMO then
     task.spawn(function()
         NexusLib:Demo()
     end)
