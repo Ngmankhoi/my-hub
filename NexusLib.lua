@@ -1602,14 +1602,15 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                 if cfg.Callback then task.spawn(cfg.Callback, v) end
             end
 
-            field.MouseButton1Click:Connect(function()
+            local function onFieldTrigger()
                 if menu then close() return end
                 dismissDropdown()
                 closeOpenDropdown = close
                 arrow:SetOpen(true, Theme.Text, Theme.Dim)
-                local width = math.max(130, field.AbsoluteSize.X)
+
                 local curScale = (Window and Window.Scale and Window.Scale.Scale) or 1
                 if curScale <= 0 then curScale = 1 end
+                local unscaledWidth = math.max(130, math.floor(field.AbsoluteSize.X / curScale))
 
                 local maxVisibleHeight = 185
                 local itemHeight = 28
@@ -1617,18 +1618,21 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                 local dropdownHeight = math.min(totalItemsHeight, maxVisibleHeight)
                 local needsScroll = totalItemsHeight > maxVisibleHeight
 
-                local screenH = (Camera and Camera.ViewportSize and Camera.ViewportSize.Y) or 800
+                local cam = workspace.CurrentCamera
+                local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+                local screenH = vp.Y
                 local anchorY = 0
-                local spawnY = (field.AbsolutePosition.Y + field.AbsoluteSize.Y + 4) / curScale
-                if (spawnY * curScale + dropdownHeight * curScale) > (screenH - 10) then
+                local spawnY = field.AbsolutePosition.Y + field.AbsoluteSize.Y + 4
+                if (spawnY + dropdownHeight * curScale) > (screenH - 10) then
                     anchorY = 1
-                    spawnY = (field.AbsolutePosition.Y - 4) / curScale
+                    spawnY = field.AbsolutePosition.Y - 4
                 end
+                local spawnX = field.AbsolutePosition.X + field.AbsoluteSize.X
 
                 menu = New("Frame", {
                     AnchorPoint = Vector2.new(1, anchorY),
-                    Position = UDim2.fromOffset((field.AbsolutePosition.X + field.AbsoluteSize.X) / curScale, spawnY),
-                    Size = UDim2.fromOffset(width, 0),
+                    Position = UDim2.fromOffset(spawnX, spawnY),
+                    Size = UDim2.fromOffset(unscaledWidth, 0),
                     BackgroundColor3 = Theme.Menu,
                     BorderSizePixel = 0,
                     ClipsDescendants = true,
@@ -1669,7 +1673,7 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                     }),
                 })
 
-                Tween(menu, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(width, dropdownHeight) })
+                Tween(menu, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(unscaledWidth, dropdownHeight) })
 
                 for i, option in ipairs(options) do
                     local selected = option == value
@@ -1679,7 +1683,7 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                         BackgroundTransparency = selected and 0 or 1,
                         BorderSizePixel = 0,
                         AutoButtonColor = false,
-                        Active = false,
+                        Active = true,
                         Text = tostring(option),
                         Font = Enum.Font.GothamMedium,
                         TextSize = 11,
@@ -1695,8 +1699,8 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                     end)
                     item.MouseLeave:Connect(function()
                         Tween(item, 0.1, nil, nil, {
-                            BackgroundTransparency = selected and 0 or 1,
-                            TextColor3 = selected and Theme.Text or Theme.Dim,
+                            BackgroundTransparency = (option == value) and 0 or 1,
+                            TextColor3 = (option == value) and Theme.Text or Theme.Dim,
                         })
                     end)
 
@@ -1707,7 +1711,10 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                         set(option)
                         close()
                     end
-                    item.Activated:Connect(onSelect)
+                    item.MouseButton1Click:Connect(onSelect)
+                    if typeof(item.Activated) == "RBXScriptSignal" then
+                        item.Activated:Connect(onSelect)
+                    end
                 end
 
                 closeConn = TrackConn(UserInputService.InputBegan:Connect(function(input)
@@ -1722,7 +1729,12 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                         end
                     end
                 end))
-            end)
+            end
+
+            field.MouseButton1Click:Connect(onFieldTrigger)
+            if typeof(field.Activated) == "RBXScriptSignal" then
+                field.Activated:Connect(onFieldTrigger)
+            end
 
             local Dropdown = {}
             function Dropdown:Set(v) set(v) end
@@ -1742,8 +1754,8 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
             local selectedMap = {}
             if type(cfg.Default) == "table" then
                 for k, v in pairs(cfg.Default) do
-                    if type(k) == "number" then selectedMap[v] = true
-                    elseif v == true then selectedMap[k] = true end
+                    if type(k) == "number" then selectedMap[tostring(v)] = true
+                    elseif v == true then selectedMap[tostring(k)] = true end
                 end
             end
 
@@ -1760,7 +1772,7 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
             local function updateCount()
                 local count = 0
                 for _, opt in ipairs(options) do
-                    if selectedMap[opt] then count = count + 1 end
+                    if selectedMap[tostring(opt)] then count = count + 1 end
                 end
                 valueLabel.Text = count == 0 and "None" or (count .. " selected")
             end
@@ -1779,14 +1791,15 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                 end
             end
 
-            field.MouseButton1Click:Connect(function()
+            local function onFieldTrigger()
                 if menu then close() return end
                 dismissDropdown()
                 closeOpenDropdown = close
                 arrow:SetOpen(true, Theme.Text, Theme.Dim)
-                local width = math.max(140, field.AbsoluteSize.X)
+
                 local curScale = (Window and Window.Scale and Window.Scale.Scale) or 1
                 if curScale <= 0 then curScale = 1 end
+                local unscaledWidth = math.max(140, math.floor(field.AbsoluteSize.X / curScale))
 
                 local maxVisibleHeight = 185
                 local itemHeight = 28
@@ -1794,18 +1807,21 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                 local dropdownHeight = math.min(totalItemsHeight, maxVisibleHeight)
                 local needsScroll = totalItemsHeight > maxVisibleHeight
 
-                local screenH = (Camera and Camera.ViewportSize and Camera.ViewportSize.Y) or 800
+                local cam = workspace.CurrentCamera
+                local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+                local screenH = vp.Y
                 local anchorY = 0
-                local spawnY = (field.AbsolutePosition.Y + field.AbsoluteSize.Y + 4) / curScale
-                if (spawnY * curScale + dropdownHeight * curScale) > (screenH - 10) then
+                local spawnY = field.AbsolutePosition.Y + field.AbsoluteSize.Y + 4
+                if (spawnY + dropdownHeight * curScale) > (screenH - 10) then
                     anchorY = 1
-                    spawnY = (field.AbsolutePosition.Y - 4) / curScale
+                    spawnY = field.AbsolutePosition.Y - 4
                 end
+                local spawnX = field.AbsolutePosition.X + field.AbsoluteSize.X
 
                 menu = New("Frame", {
                     AnchorPoint = Vector2.new(1, anchorY),
-                    Position = UDim2.fromOffset((field.AbsolutePosition.X + field.AbsoluteSize.X) / curScale, spawnY),
-                    Size = UDim2.fromOffset(width, 0),
+                    Position = UDim2.fromOffset(spawnX, spawnY),
+                    Size = UDim2.fromOffset(unscaledWidth, 0),
                     BackgroundColor3 = Theme.Menu,
                     BorderSizePixel = 0,
                     ClipsDescendants = true,
@@ -1846,18 +1862,20 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                     }),
                 })
 
-                Tween(menu, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(width, dropdownHeight) })
+                Tween(menu, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(unscaledWidth, dropdownHeight) })
 
                 for i, option in ipairs(options) do
-                    local isChecked = selectedMap[option] == true
+                    local optStr = tostring(option)
+                    local isChecked = selectedMap[optStr] == true
+
                     local item = New("TextButton", {
                         Size = UDim2.new(1, 0, 0, 27),
                         BackgroundColor3 = Theme.Control,
                         BackgroundTransparency = isChecked and 0 or 1,
                         BorderSizePixel = 0,
                         AutoButtonColor = false,
-                        Active = false,
-                        Text = (isChecked and "[x]  " or "[ ]  ") .. tostring(option),
+                        Active = true,
+                        Text = optStr,
                         Font = Enum.Font.GothamMedium,
                         TextSize = 11,
                         TextColor3 = isChecked and Theme.Text or Theme.Dim,
@@ -1865,17 +1883,64 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                         LayoutOrder = i,
                         ZIndex = 62,
                         Parent = scroll,
-                    }, { Corner(6), New("UIPadding", { PaddingLeft = UDim.new(0, 8) }) })
+                    }, { Corner(6), New("UIPadding", { PaddingLeft = UDim.new(0, 10) }) })
 
-                    item.Activated:Connect(function()
-                        selectedMap[option] = not selectedMap[option]
-                        local checked = selectedMap[option] == true
-                        item.Text = (checked and "[x]  " or "[ ]  ") .. tostring(option)
+                    -- Clean vector checkmark indicator (no crude [x] text!)
+                    local checkHolder = New("Frame", {
+                        AnchorPoint = Vector2.new(1, 0.5),
+                        Position = UDim2.new(1, -8, 0.5, 0),
+                        Size = UDim2.fromOffset(14, 14),
+                        BackgroundTransparency = 1,
+                        ZIndex = 63,
+                        Parent = item,
+                    })
+                    local checkLeg1 = New("Frame", {
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        Position = UDim2.new(0.35, 0, 0.65, 0),
+                        Size = UDim2.fromOffset(4, 2),
+                        Rotation = 45,
+                        BackgroundColor3 = Color3.fromRGB(110, 230, 150),
+                        BorderSizePixel = 0,
+                        Visible = isChecked,
+                        ZIndex = 64,
+                        Parent = checkHolder,
+                    }, { Corner(1) })
+                    local checkLeg2 = New("Frame", {
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        Position = UDim2.new(0.65, 0, 0.45, 0),
+                        Size = UDim2.fromOffset(8, 2),
+                        Rotation = -45,
+                        BackgroundColor3 = Color3.fromRGB(110, 230, 150),
+                        BorderSizePixel = 0,
+                        Visible = isChecked,
+                        ZIndex = 64,
+                        Parent = checkHolder,
+                    }, { Corner(1) })
+
+                    local function updateItemVisual(checked)
+                        checkLeg1.Visible = checked
+                        checkLeg2.Visible = checked
                         item.TextColor3 = checked and Theme.Text or Theme.Dim
                         item.BackgroundTransparency = checked and 0 or 1
+                    end
+
+                    local itemDebounce = false
+                    local function onToggle()
+                        if itemDebounce then return end
+                        itemDebounce = true
+                        task.delay(0.1, function() itemDebounce = false end)
+
+                        selectedMap[optStr] = not selectedMap[optStr]
+                        local checked = selectedMap[optStr] == true
+                        updateItemVisual(checked)
                         updateCount()
                         if cfg.Callback then task.spawn(cfg.Callback, selectedMap) end
-                    end)
+                    end
+
+                    item.MouseButton1Click:Connect(onToggle)
+                    if typeof(item.Activated) == "RBXScriptSignal" then
+                        item.Activated:Connect(onToggle)
+                    end
                 end
 
                 closeConn = TrackConn(UserInputService.InputBegan:Connect(function(input)
@@ -1890,28 +1955,32 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                         end
                     end
                 end))
-            end)
+            end
+
+            field.MouseButton1Click:Connect(onFieldTrigger)
+            if typeof(field.Activated) == "RBXScriptSignal" then
+                field.Activated:Connect(onFieldTrigger)
+            end
 
             local MultiDropdown = {}
             function MultiDropdown:Set(tbl)
                 selectedMap = {}
                 if type(tbl) == "table" then
                     for k, v in pairs(tbl) do
-                        if type(k) == "number" then selectedMap[v] = true
-                        elseif v == true then selectedMap[k] = true end
+                        if type(k) == "number" then selectedMap[tostring(v)] = true
+                        elseif v == true then selectedMap[tostring(k)] = true end
                     end
                 end
                 updateCount()
                 if cfg.Callback then task.spawn(cfg.Callback, selectedMap) end
             end
-            function MultiDropdown:Get() return selectedMap end
+            function MultiDropdown:Get()
+                local copy = {}
+                for k, v in pairs(selectedMap) do copy[k] = v end
+                return copy
+            end
             function MultiDropdown:Refresh(newOptions)
                 options = newOptions or {}
-                local newMap = {}
-                for _, opt in ipairs(options) do
-                    if selectedMap[opt] then newMap[opt] = true end
-                end
-                selectedMap = newMap
                 updateCount()
             end
             return MultiDropdown
