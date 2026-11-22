@@ -83,21 +83,46 @@ NexusLib.__index = NexusLib
 local Theme = NexusLib.Theme
 NexusLib.UserScaleMultiplier = 1.0
 
+local function IsMobileDevice()
+    local uis = game:GetService("UserInputService")
+    local cam = workspace.CurrentCamera
+    local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+    if uis.TouchEnabled and not uis.KeyboardEnabled then
+        return true
+    end
+    if vp.X < 900 and vp.Y < 520 then
+        return true
+    end
+    return false
+end
+NexusLib.IsMobile = IsMobileDevice
+
 function NexusLib:GetBaseScale()
     local cam = workspace.CurrentCamera
     local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
     if vp.X < 100 or vp.Y < 100 then
         vp = Vector2.new(1280, 720)
     end
-    local availW = math.max(260, vp.X - 24)
-    local availH = math.max(220, vp.Y - 24)
-    local scaleW = availW / 650
-    local scaleH = availH / 490
-    local autoScale = math.min(scaleW, scaleH)
-    if autoScale >= 0.98 then
-        return 1.0
+    local isMobile = IsMobileDevice()
+    if isMobile then
+        local availW = math.max(260, vp.X - 16)
+        local availH = math.max(200, vp.Y - 16)
+        local scaleW = availW / 640
+        local scaleH = availH / 460
+        local autoScale = math.min(scaleW, scaleH)
+        return math.clamp(autoScale, 0.50, 0.88)
+    else
+        -- PC (Desktop / Laptop): Generous scaling so UI & text are easily readable
+        if vp.Y >= 1300 then
+            return 1.35
+        elseif vp.Y >= 980 then
+            return 1.22
+        elseif vp.Y >= 720 then
+            return 1.12
+        else
+            return 1.0
+        end
     end
-    return math.clamp(autoScale, 0.50, 1.0)
 end
 
 function NexusLib:GetResponsiveScale()
@@ -655,8 +680,7 @@ NexusLib.Audio = AudioEngine
 local function GetIslandDims()
     local cam = workspace.CurrentCamera
     local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
-    local uis = game:GetService("UserInputService")
-    local isMobile = (uis.TouchEnabled and not uis.KeyboardEnabled) or vp.X < 900 or vp.Y < 520
+    local isMobile = IsMobileDevice()
     if isMobile then
         return {
             Top = 6,
@@ -673,27 +697,27 @@ local function GetIslandDims()
             StatusTextSize = 10,
             ShowStats = vp.X > 680,
             DrawerY = 32,
-            DrawerH = 26,
-            BtnH = 24,
+            DrawerH = 28,
+            BtnH = 26,
         }
     else
         return {
-            Top = 14,
-            W = 320,
-            H = 38,
-            OpenW = 380,
-            OpenH = 80,
-            Corner = 19,
-            OpenCorner = 16,
-            LogoSize = 18,
-            LogoPos = UDim2.new(0, 12, 0.5, -9),
-            NamePos = 36,
-            NameTextSize = 12,
-            StatusTextSize = 11,
+            Top = 16,
+            W = 350,
+            H = 42,
+            OpenW = 420,
+            OpenH = 88,
+            Corner = 21,
+            OpenCorner = 18,
+            LogoSize = 20,
+            LogoPos = UDim2.new(0, 14, 0.5, -10),
+            NamePos = 38,
+            NameTextSize = 14,
+            StatusTextSize = 12,
             ShowStats = true,
-            DrawerY = 40,
-            DrawerH = 30,
-            BtnH = 28,
+            DrawerY = 44,
+            DrawerH = 34,
+            BtnH = 30,
         }
     end
 end
@@ -855,21 +879,56 @@ function NexusLib:CreateDynamicIsland(config)
     end
     function IslandApi:UpdateMediaVisuals() end
 
-    Bar.MouseButton1Click:Connect(function() IslandApi:SetExpanded(not IslandApi.Expanded) end)
+    local lastBarClick = 0
+    local function onIslandBarTrigger()
+        local now = tick()
+        if now - lastBarClick < 0.22 then return end
+        lastBarClick = now
+        if NexusLib.ActiveWindow and not NexusLib.ActiveWindow.Visible then
+            -- Tapping island pill when UI is hidden immediately restores and shows the menu!
+            NexusLib.ActiveWindow:SetVisible(true)
+            IslandApi:SetExpanded(false)
+        else
+            IslandApi:SetExpanded(not IslandApi.Expanded)
+        end
+    end
+    Bar.MouseButton1Click:Connect(onIslandBarTrigger)
+    if typeof(Bar.Activated) == "RBXScriptSignal" then
+        Bar.Activated:Connect(onIslandBarTrigger)
+    end
+
     Island.MouseEnter:Connect(function() Tween(Island.UIStroke, 0.2, nil, nil, { Transparency = Theme.StrokeHover }) end)
     Island.MouseLeave:Connect(function() Tween(Island.UIStroke, 0.2, nil, nil, { Transparency = Theme.StrokeAlpha }) end)
-    HideBtn.MouseButton1Click:Connect(function()
+
+    local lastHideClick = 0
+    local function onHideBtnTrigger()
+        local now = tick()
+        if now - lastHideClick < 0.22 then return end
+        lastHideClick = now
         if NexusLib.ActiveWindow then
             NexusLib.ActiveWindow:ToggleVisible()
         end
         IslandApi:SetExpanded(false)
-    end)
-    ResetBtn.MouseButton1Click:Connect(function()
+    end
+    HideBtn.MouseButton1Click:Connect(onHideBtnTrigger)
+    if typeof(HideBtn.Activated) == "RBXScriptSignal" then
+        HideBtn.Activated:Connect(onHideBtnTrigger)
+    end
+
+    local lastResetClick = 0
+    local function onResetBtnTrigger()
+        local now = tick()
+        if now - lastResetClick < 0.22 then return end
+        lastResetClick = now
         if NexusLib.ActiveWindow then
             NexusLib.ActiveWindow:ResetPosition()
         end
         IslandApi:SetExpanded(false)
-    end)
+    end
+    ResetBtn.MouseButton1Click:Connect(onResetBtnTrigger)
+    if typeof(ResetBtn.Activated) == "RBXScriptSignal" then
+        ResetBtn.Activated:Connect(onResetBtnTrigger)
+    end
 
     local frames, last = 0, os.clock()
     local statsConn
@@ -991,7 +1050,17 @@ function NexusLib:CreateWindow(config)
         Tween(MinBtn, 0.15, nil, nil, { BackgroundTransparency = 1 })
         Tween(MinLine, 0.15, nil, nil, { BackgroundColor3 = Theme.Dim })
     end)
-    MinBtn.MouseButton1Click:Connect(function() Window:SetVisible(false) end)
+    local lastMinClick = 0
+    local function onMinBtnTrigger()
+        local now = tick()
+        if now - lastMinClick < 0.22 then return end
+        lastMinClick = now
+        Window:SetVisible(false)
+    end
+    MinBtn.MouseButton1Click:Connect(onMinBtnTrigger)
+    if typeof(MinBtn.Activated) == "RBXScriptSignal" then
+        MinBtn.Activated:Connect(onMinBtnTrigger)
+    end
 
     -- drag by the title bar (double-click resets position to center)
     local dragging, dragStart, startPos = false, nil, nil
@@ -1078,7 +1147,10 @@ function NexusLib:CreateWindow(config)
             end
             NexusLib:Notify({ Title = "Nexus", Content = "Menu shown" })
         else
-            local hideTarget = UDim2.new(restPos.X.Scale, restPos.X.Offset, 0, ISLAND_TOP + 2)
+            local dims = GetIslandDims()
+            local curScale = FrameScale and FrameScale.Scale or 1.0
+            local hideY = math.floor(((dims and dims.Top or 10) + 2) * math.min(curScale, 1.0))
+            local hideTarget = UDim2.new(restPos.X.Scale, restPos.X.Offset, 0, hideY)
             Tween(Frame, 0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.In, {
                 Position = hideTarget,
                 Size = UDim2.fromOffset(size.X.Offset * 0.2, size.Y.Offset * 0.1),
@@ -1097,7 +1169,12 @@ function NexusLib:CreateWindow(config)
             task.delay(0.35, function()
                 if not Window.Visible then Frame.Visible = false end
             end)
-            NexusLib:Notify({ Title = "Nexus", Content = "Hidden, press " .. NexusLib.ToggleKey.Name .. " to show" })
+            local uis = game:GetService("UserInputService")
+            if uis.KeyboardEnabled then
+                NexusLib:Notify({ Title = "Nexus", Content = "Hidden, press " .. NexusLib.ToggleKey.Name .. " or click Island to show" })
+            else
+                NexusLib:Notify({ Title = "Nexus", Content = "Hidden, tap Island to show" })
+            end
         end
     end
     function Window:ToggleVisible()
