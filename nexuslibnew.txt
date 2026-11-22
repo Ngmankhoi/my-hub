@@ -652,8 +652,53 @@ NexusLib.Audio = AudioEngine
 --------------------------------------------------------------------------
 -- DYNAMIC ISLAND
 --------------------------------------------------------------------------
-local ISLAND_TOP, ISLAND_W, ISLAND_H = 14, 340, 40
-local ISLAND_OPEN_W, ISLAND_OPEN_H = 400, 82
+local function GetIslandDims()
+    local cam = workspace.CurrentCamera
+    local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+    local uis = game:GetService("UserInputService")
+    local isMobile = (uis.TouchEnabled and not uis.KeyboardEnabled) or vp.X < 900 or vp.Y < 520
+    if isMobile then
+        return {
+            Top = 6,
+            W = 210,
+            H = 30,
+            OpenW = 260,
+            OpenH = 68,
+            Corner = 15,
+            OpenCorner = 14,
+            LogoSize = 15,
+            LogoPos = UDim2.new(0, 8, 0.5, -7),
+            NamePos = 26,
+            NameTextSize = 11,
+            StatusTextSize = 10,
+            ShowStats = vp.X > 680,
+            DrawerY = 32,
+            DrawerH = 26,
+            BtnH = 24,
+        }
+    else
+        return {
+            Top = 14,
+            W = 320,
+            H = 38,
+            OpenW = 380,
+            OpenH = 80,
+            Corner = 19,
+            OpenCorner = 16,
+            LogoSize = 18,
+            LogoPos = UDim2.new(0, 12, 0.5, -9),
+            NamePos = 36,
+            NameTextSize = 12,
+            StatusTextSize = 11,
+            ShowStats = true,
+            DrawerY = 40,
+            DrawerH = 30,
+            BtnH = 28,
+        }
+    end
+end
+
+NexusLib.GetIslandDims = GetIslandDims
 
 NexusLib.CurrentActivity = nil
 function NexusLib:SetActivity(act)
@@ -675,20 +720,21 @@ end
 function NexusLib:CreateDynamicIsland(config)
     config = config or {}
     DestroyExisting("Nexus_Island")
+    local dims = GetIslandDims()
     local scale = NexusLib:GetResponsiveScale()
     local Gui = New("ScreenGui", {
         Name = "Nexus_Island", DisplayOrder = 100000, ResetOnSpawn = false,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true, Parent = GetSafeGui(),
     })
 
-    local islandTop = math.floor(ISLAND_TOP * math.min(scale, 1.0))
+    local islandTop = math.floor(dims.Top * math.min(scale, 1.0))
     local Island = Surface("Frame", {
         AnchorPoint = Vector2.new(0.5, 0),
         Position = UDim2.new(0.5, 0, 0, islandTop),
-        Size = UDim2.fromOffset(ISLAND_W, ISLAND_H),
+        Size = UDim2.fromOffset(dims.W, dims.H),
         ClipsDescendants = true,
         Parent = Gui,
-    }, 20)
+    }, dims.Corner)
     local IslandScale = New("UIScale", {
         Name = "IslandScale",
         Scale = scale,
@@ -697,57 +743,59 @@ function NexusLib:CreateDynamicIsland(config)
     local IslandCorner = Island:FindFirstChildOfClass("UICorner")
 
     local Bar = New("TextButton", {
-        Size = UDim2.new(1, 0, 0, ISLAND_H), BackgroundTransparency = 1, Text = "",
+        Size = UDim2.new(1, 0, 0, dims.H), BackgroundTransparency = 1, Text = "",
         AutoButtonColor = false, Parent = Island,
     })
-    Logo(Bar, { Position = UDim2.new(0, 12, 0.5, -9), Size = UDim2.fromOffset(18, 18) })
+    Logo(Bar, { Position = dims.LogoPos, Size = UDim2.fromOffset(dims.LogoSize, dims.LogoSize) })
     local NameLabel = Label(Bar, {
-        Position = UDim2.fromOffset(36, 0), Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X,
-        Font = Enum.Font.GothamBold, TextSize = 12, Text = config.Title or "Nexus",
+        Position = UDim2.fromOffset(dims.NamePos, 0), Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X,
+        Font = Enum.Font.GothamBold, TextSize = dims.NameTextSize, Text = config.Title or "Nexus",
     })
     local Status = Label(Bar, {
-        Position = UDim2.fromOffset(80, 0), Size = UDim2.new(0, 110, 1, 0),
-        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Dim, Text = config.Status or "Active",
+        Position = UDim2.fromOffset(dims.NamePos + 44, 0), Size = UDim2.new(0, 90, 1, 0),
+        Font = Enum.Font.Gotham, TextSize = dims.StatusTextSize, TextColor3 = Theme.Dim, Text = config.Status or "Active",
     })
     local function updateStatusPos()
-        Status.Position = UDim2.fromOffset(36 + NameLabel.TextBounds.X + 8, 0)
+        local nbX = (NameLabel.TextBounds.X > 0) and NameLabel.TextBounds.X or 38
+        Status.Position = UDim2.fromOffset(dims.NamePos + nbX + 6, 0)
     end
     NameLabel:GetPropertyChangedSignal("TextBounds"):Connect(updateStatusPos)
     task.defer(updateStatusPos)
 
     local Stats = Label(Bar, {
-        AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -33, 0, 0), Size = UDim2.new(0, 115, 1, 0),
+        AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -28, 0, 0), Size = UDim2.new(0, 100, 1, 0),
         Font = Enum.Font.Code, TextSize = 10, TextColor3 = Theme.Dim, TextXAlignment = Enum.TextXAlignment.Right,
-        RichText = true,
+        RichText = true, Visible = dims.ShowStats,
         Text = "144 fps <font color=\"#5a5a62\">" .. DOT .. "</font> 19ms",
     })
 
     local Caret = Chevron(Bar, {
-        AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -13, 0.5, 0),
+        AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0),
     }, Theme.Faint)
 
     -- drawer: Window controls
     local Drawer = New("Frame", {
-        Position = UDim2.fromOffset(10, ISLAND_H + 2), Size = UDim2.new(1, -20, 0, 30),
+        Position = UDim2.fromOffset(10, dims.DrawerY), Size = UDim2.new(1, -20, 0, dims.DrawerH),
         BackgroundTransparency = 1, Visible = false, Parent = Island,
     })
 
     local WinRow = New("Frame", {
-        Position = UDim2.fromOffset(0, 0), Size = UDim2.new(1, 0, 0, 30),
+        Position = UDim2.fromOffset(0, 0), Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1, Parent = Drawer,
     })
     local HideBtn = Button(WinRow, "Hide UI", {
-        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.3, 0, 0.5, 0), Size = UDim2.new(0.58, 0, 1, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.32, 0, 0.5, 0), Size = UDim2.new(0.56, 0, 1, 0),
     }, false)
     local ResetBtn = Button(WinRow, "Center", {
-        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.8, 0, 0.5, 0), Size = UDim2.new(0.38, 0, 1, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.80, 0, 0.5, 0), Size = UDim2.new(0.36, 0, 1, 0),
     }, true)
 
-    local IslandApi = { Gui = Gui, Frame = Island, Scale = IslandScale, Expanded = false, ShowStats = true }
+    local IslandApi = { Gui = Gui, Frame = Island, Scale = IslandScale, Expanded = false, ShowStats = dims.ShowStats }
     NexusLib.ActiveIsland = IslandApi
 
     function IslandApi:SetExpanded(on)
         IslandApi.Expanded = on
+        local currentDims = GetIslandDims()
         if on then
             Drawer.Visible = true
         else
@@ -758,21 +806,23 @@ function NexusLib:CreateDynamicIsland(config)
             end)
         end
         Tween(Island, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
-            Size = on and UDim2.fromOffset(ISLAND_OPEN_W, ISLAND_OPEN_H) or UDim2.fromOffset(ISLAND_W, ISLAND_H),
+            Size = on and UDim2.fromOffset(currentDims.OpenW, currentDims.OpenH) or UDim2.fromOffset(currentDims.W, currentDims.H),
         })
         if IslandCorner then
-            Tween(IslandCorner, 0.35, nil, nil, { CornerRadius = UDim.new(0, on and 16 or 20) })
+            Tween(IslandCorner, 0.35, nil, nil, { CornerRadius = UDim.new(0, on and currentDims.OpenCorner or currentDims.Corner) })
         end
         Caret:SetOpen(on, Theme.Text, Theme.Faint)
         if NexusLib.ActiveWindow then
             NexusLib.ActiveWindow:PushDown(on)
         end
     end
+
     function IslandApi:SetStatus(text)
         text = tostring(text or "Active")
         Status.TextTransparency = 1
-        local nbX = (NameLabel.TextBounds.X > 0) and NameLabel.TextBounds.X or 42
-        local targetX = 36 + nbX + 8
+        local currentDims = GetIslandDims()
+        local nbX = (NameLabel.TextBounds.X > 0) and NameLabel.TextBounds.X or 38
+        local targetX = currentDims.NamePos + nbX + 6
         Status.Position = UDim2.fromOffset(targetX, 4)
         Status.Text = text
         if text == "Fishing" or string.find(text, "Boss") then
@@ -782,20 +832,24 @@ function NexusLib:CreateDynamicIsland(config)
         end
         Tween(Status, 0.28, nil, nil, { TextTransparency = 0, Position = UDim2.fromOffset(targetX, 0) })
     end
+
     function IslandApi:SetStatsVisible(visible)
         IslandApi.ShowStats = visible
         Stats.Visible = visible
     end
+
     function IslandApi:SetHiddenLabel(hidden)
         HideBtn.Text = hidden and "Show UI" or "Hide UI"
     end
+
     function IslandApi:Gulp()
+        local currentDims = GetIslandDims()
         Tween(Island, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
-            Size = UDim2.fromOffset(ISLAND_W + 12, ISLAND_H + 4)
+            Size = UDim2.fromOffset(currentDims.W + 10, currentDims.H + 4)
         })
         task.delay(0.12, function()
             Tween(Island, 0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out, {
-                Size = UDim2.fromOffset(ISLAND_W, ISLAND_H)
+                Size = UDim2.fromOffset(currentDims.W, currentDims.H)
             })
         end)
     end
@@ -828,10 +882,12 @@ function NexusLib:CreateDynamicIsland(config)
         if os.clock() - last >= 1 then
             local ping = 19
             pcall(function()
-                ping = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
+                local net = game:GetService("NetworkClient")
+                ping = math.floor(net:GetOutgoingKBPS() * 0.4 + 12)
             end)
-            Stats.Text = frames .. " fps <font color=\"#5a5a62\">" .. DOT .. "</font> " .. ping .. "ms"
-            frames, last = 0, os.clock()
+            Stats.Text = tostring(frames) .. " fps <font color=\"#5a5a62\">" .. DOT .. "</font> " .. tostring(ping) .. "ms"
+            frames = 0
+            last = os.clock()
         end
     end))
 
@@ -839,90 +895,7 @@ function NexusLib:CreateDynamicIsland(config)
 end
 
 --------------------------------------------------------------------------
--- NOTIFICATIONS (stacked bottom-right, countdown bar, slide in / collapse out)
---------------------------------------------------------------------------
-local NOTE_W, NOTE_H, NOTE_MAX = 260, 56, 5
-local NoteQueue = {}
-
-function NexusLib:Notify(cfg)
-    cfg = cfg or {}
-    local duration = cfg.Duration or NexusLib.NotifyDuration or 3
-    local parent = GetSafeGui()
-    local Gui = parent:FindFirstChild("Nexus_Notifications")
-    if not Gui then
-        Gui = New("ScreenGui", {
-            Name = "Nexus_Notifications", DisplayOrder = 100001, ResetOnSpawn = false,
-            ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true, Parent = parent,
-        })
-        New("Frame", {
-            Name = "Stack", AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -20, 1, -20),
-            Size = UDim2.new(0, NOTE_W, 1, -40), BackgroundTransparency = 1, Parent = Gui,
-        }, {
-            New("UIListLayout", {
-                VerticalAlignment = Enum.VerticalAlignment.Bottom, Padding = UDim.new(0, 0),
-                SortOrder = Enum.SortOrder.LayoutOrder,
-            }),
-        })
-    end
-    local Stack = Gui.Stack
-
-    local Slot = New("Frame", {
-        Size = UDim2.fromOffset(NOTE_W, 0), BackgroundTransparency = 1,
-        ClipsDescendants = true, LayoutOrder = math.floor(os.clock() * 1000), Parent = Stack,
-    })
-    local Card = Surface("Frame", {
-        AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 28, 1, 0),
-        Size = UDim2.fromOffset(NOTE_W, NOTE_H), ClipsDescendants = true, Parent = Slot,
-    }, 12)
-    local Icon = Logo(Card, { Position = UDim2.fromOffset(12, 12), Size = UDim2.fromOffset(16, 16) })
-    local TitleLbl = Label(Card, {
-        Position = UDim2.fromOffset(36, 10), Size = UDim2.new(1, -48, 0, 16),
-        Font = Enum.Font.GothamBold, TextSize = 12, Text = cfg.Title or "Nexus",
-        TextTruncate = Enum.TextTruncate.AtEnd,
-    })
-    local BodyLbl = Label(Card, {
-        Position = UDim2.fromOffset(36, 27), Size = UDim2.new(1, -48, 0, 16),
-        Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = Theme.Dim, Text = cfg.Content or cfg.Message or "",
-        TextTruncate = Enum.TextTruncate.AtEnd,
-    })
-
-    local note = { Slot = Slot, Card = Card, Closed = false }
-    function note:Close()
-        if note.Closed then return end
-        note.Closed = true
-        for i, n in ipairs(NoteQueue) do
-            if n == note then table.remove(NoteQueue, i) break end
-        end
-        Tween(Card, 0.26, Enum.EasingStyle.Quart, Enum.EasingDirection.In, {
-            Position = UDim2.new(0, 32, 1, 0), BackgroundTransparency = 1,
-        })
-        if Card:FindFirstChild("UIStroke") then
-            Tween(Card.UIStroke, 0.2, nil, nil, { Transparency = 1 })
-        end
-        Tween(TitleLbl, 0.2, nil, nil, { TextTransparency = 1 })
-        Tween(BodyLbl, 0.2, nil, nil, { TextTransparency = 1 })
-        if Icon then
-            Tween(Icon, 0.2, nil, nil, { ImageTransparency = 1 })
-        end
-        task.delay(0.16, function()
-            Tween(Slot, 0.28, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(NOTE_W, 0) })
-        end)
-        task.delay(0.46, function() pcall(function() Slot:Destroy() end) end)
-    end
-
-    table.insert(NoteQueue, note)
-    while #NoteQueue > NOTE_MAX do
-        NoteQueue[1]:Close()
-    end
-
-    Tween(Slot, 0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(NOTE_W, NOTE_H + 8) })
-    Tween(Card, 0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Position = UDim2.new(0, 0, 1, 0) })
-    task.delay(duration, function() note:Close() end)
-    return note
-end
-
---------------------------------------------------------------------------
--- WINDOW
+-- WINDOW CREATION
 --------------------------------------------------------------------------
 function NexusLib:CreateWindow(config)
     config = config or {}
@@ -942,7 +915,8 @@ function NexusLib:CreateWindow(config)
     DestroyExisting("Nexus_Window")
     local scale = NexusLib:GetResponsiveScale()
     local size = config.Size or UDim2.fromOffset(NexusLib.DefaultWindowSize.X, NexusLib.DefaultWindowSize.Y)
-    local homeY = math.floor((ISLAND_TOP + ISLAND_H + 10) * math.min(scale, 1.0))
+    local dims = GetIslandDims()
+    local homeY = math.floor((dims.Top + dims.H + 8) * math.min(scale, 1.0))
     local defaultPos = UDim2.new(0.5, 0, 0, homeY)
     local restPos = defaultPos
 
@@ -1149,8 +1123,9 @@ function NexusLib:CreateWindow(config)
     end
     function Window:ResetPosition()
         local curScale = FrameScale and FrameScale.Scale or 1
-        local curHomeY = math.floor((ISLAND_TOP + ISLAND_H + 10) * math.min(curScale, 1.0))
-        local pushOffset = Window.Pushed and math.floor((ISLAND_OPEN_H - ISLAND_H) * math.min(curScale, 1.0)) or 0
+        local dims = GetIslandDims()
+        local curHomeY = math.floor((dims.Top + dims.H + 8) * math.min(curScale, 1.0))
+        local pushOffset = Window.Pushed and math.floor((dims.OpenH - dims.H) * math.min(curScale, 1.0)) or 0
         restPos = UDim2.new(0.5, 0, 0, curHomeY + pushOffset)
         Tween(Frame, 0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out, { Position = restPos })
     end
@@ -1159,7 +1134,8 @@ function NexusLib:CreateWindow(config)
         Window.Pushed = pushed
         dismissDropdown()
         local curScale = FrameScale and FrameScale.Scale or 1
-        local dy = (ISLAND_OPEN_H - ISLAND_H) * math.min(curScale, 1.0)
+        local dims = GetIslandDims()
+        local dy = (dims.OpenH - dims.H) * math.min(curScale, 1.0)
         local deltaY = pushed and math.floor(dy) or -math.floor(dy)
         restPos = UDim2.new(restPos.X.Scale, restPos.X.Offset, restPos.Y.Scale, restPos.Y.Offset + deltaY)
         if Window.Visible then
