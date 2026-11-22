@@ -1518,6 +1518,7 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
         end
 
         function Tab:CreateDropdown(cfg)
+            cfg = cfg or {}
             local options = cfg.Options or {}
             local value = cfg.Default or options[1]
             local _, right = Item(cfg, 106)
@@ -1553,26 +1554,70 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                 dismissDropdown()
                 closeOpenDropdown = close
                 arrow:SetOpen(true, Theme.Text, Theme.Dim)
-                local width = math.max(120, field.AbsoluteSize.X)
-                local height = #options * 28 + 8
+                local width = math.max(130, field.AbsoluteSize.X)
                 local curScale = (Window and Window.Scale and Window.Scale.Scale) or 1
+                if curScale <= 0 then curScale = 1 end
+
+                local maxVisibleHeight = 185
+                local itemHeight = 28
+                local totalItemsHeight = #options * itemHeight + 8
+                local dropdownHeight = math.min(totalItemsHeight, maxVisibleHeight)
+                local needsScroll = totalItemsHeight > maxVisibleHeight
+
+                local screenH = (Camera and Camera.ViewportSize and Camera.ViewportSize.Y) or 800
+                local anchorY = 0
+                local spawnY = (field.AbsolutePosition.Y + field.AbsoluteSize.Y + 4) / curScale
+                if (spawnY * curScale + dropdownHeight * curScale) > (screenH - 10) then
+                    anchorY = 1
+                    spawnY = (field.AbsolutePosition.Y - 4) / curScale
+                end
+
                 menu = New("Frame", {
-                    AnchorPoint = Vector2.new(1, 0),
-                    Position = UDim2.fromOffset(field.AbsolutePosition.X + field.AbsoluteSize.X, field.AbsolutePosition.Y + field.AbsoluteSize.Y + 4),
+                    AnchorPoint = Vector2.new(1, anchorY),
+                    Position = UDim2.fromOffset((field.AbsolutePosition.X + field.AbsoluteSize.X) / curScale, spawnY),
                     Size = UDim2.fromOffset(width, 0),
                     BackgroundColor3 = Theme.Menu,
                     BorderSizePixel = 0,
                     ClipsDescendants = true,
-                    ZIndex = 50,
+                    ZIndex = 60,
                     Parent = Gui,
                 }, {
                     New("UIScale", { Scale = curScale }),
                     Corner(9),
                     Rim(Theme.StrokeAlpha),
-                    New("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }),
-                    New("UIListLayout", { Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder }),
                 })
-                Tween(menu, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(width, height) })
+
+                local scroll = New("ScrollingFrame", {
+                    Size = UDim2.fromScale(1, 1),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    ScrollBarThickness = needsScroll and 3 or 0,
+                    ScrollBarImageColor3 = Theme.White,
+                    ScrollBarImageTransparency = 0.6,
+                    VerticalScrollBarInset = Enum.ScrollBarInset.None,
+                    ScrollingDirection = Enum.ScrollingDirection.Y,
+                    CanvasSize = UDim2.new(0, 0, 0, 0),
+                    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                    ElasticBehavior = Enum.ElasticBehavior.WhenScrollable,
+                    Active = true,
+                    ClipsDescendants = true,
+                    ZIndex = 61,
+                    Parent = menu,
+                }, {
+                    New("UIPadding", {
+                        PaddingTop = UDim.new(0, 4),
+                        PaddingBottom = UDim.new(0, 4),
+                        PaddingLeft = UDim.new(0, 4),
+                        PaddingRight = UDim.new(0, needsScroll and 6 or 4),
+                    }),
+                    New("UIListLayout", {
+                        Padding = UDim.new(0, 1),
+                        SortOrder = Enum.SortOrder.LayoutOrder,
+                    }),
+                })
+
+                Tween(menu, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(width, dropdownHeight) })
+
                 for i, option in ipairs(options) do
                     local selected = option == value
                     local item = New("TextButton", {
@@ -1581,15 +1626,17 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                         BackgroundTransparency = selected and 0 or 1,
                         BorderSizePixel = 0,
                         AutoButtonColor = false,
+                        Active = false,
                         Text = tostring(option),
                         Font = Enum.Font.GothamMedium,
                         TextSize = 11,
                         TextColor3 = selected and Theme.Text or Theme.Dim,
                         TextXAlignment = Enum.TextXAlignment.Left,
                         LayoutOrder = i,
-                        ZIndex = 51,
-                        Parent = menu,
+                        ZIndex = 62,
+                        Parent = scroll,
                     }, { Corner(6), New("UIPadding", { PaddingLeft = UDim.new(0, 10) }) })
+
                     item.MouseEnter:Connect(function()
                         Tween(item, 0.1, nil, nil, { BackgroundTransparency = 0, TextColor3 = Theme.Text })
                     end)
@@ -1599,11 +1646,17 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                             TextColor3 = selected and Theme.Text or Theme.Dim,
                         })
                     end)
-                    item.MouseButton1Click:Connect(function()
+
+                    local chosen = false
+                    local function onSelect()
+                        if chosen then return end
+                        chosen = true
                         set(option)
                         close()
-                    end)
+                    end
+                    item.Activated:Connect(onSelect)
                 end
+
                 closeConn = TrackConn(UserInputService.InputBegan:Connect(function(input)
                     if menu and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
                         local pos = input.Position
@@ -1678,26 +1731,69 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                 dismissDropdown()
                 closeOpenDropdown = close
                 arrow:SetOpen(true, Theme.Text, Theme.Dim)
-                local width = math.max(130, field.AbsoluteSize.X)
-                local height = #options * 28 + 8
+                local width = math.max(140, field.AbsoluteSize.X)
                 local curScale = (Window and Window.Scale and Window.Scale.Scale) or 1
+                if curScale <= 0 then curScale = 1 end
+
+                local maxVisibleHeight = 185
+                local itemHeight = 28
+                local totalItemsHeight = #options * itemHeight + 8
+                local dropdownHeight = math.min(totalItemsHeight, maxVisibleHeight)
+                local needsScroll = totalItemsHeight > maxVisibleHeight
+
+                local screenH = (Camera and Camera.ViewportSize and Camera.ViewportSize.Y) or 800
+                local anchorY = 0
+                local spawnY = (field.AbsolutePosition.Y + field.AbsoluteSize.Y + 4) / curScale
+                if (spawnY * curScale + dropdownHeight * curScale) > (screenH - 10) then
+                    anchorY = 1
+                    spawnY = (field.AbsolutePosition.Y - 4) / curScale
+                end
+
                 menu = New("Frame", {
-                    AnchorPoint = Vector2.new(1, 0),
-                    Position = UDim2.fromOffset(field.AbsolutePosition.X + field.AbsoluteSize.X, field.AbsolutePosition.Y + field.AbsoluteSize.Y + 4),
+                    AnchorPoint = Vector2.new(1, anchorY),
+                    Position = UDim2.fromOffset((field.AbsolutePosition.X + field.AbsoluteSize.X) / curScale, spawnY),
                     Size = UDim2.fromOffset(width, 0),
                     BackgroundColor3 = Theme.Menu,
                     BorderSizePixel = 0,
                     ClipsDescendants = true,
-                    ZIndex = 50,
+                    ZIndex = 60,
                     Parent = Gui,
                 }, {
                     New("UIScale", { Scale = curScale }),
                     Corner(9),
                     Rim(Theme.StrokeAlpha),
-                    New("UIPadding", { PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4) }),
-                    New("UIListLayout", { Padding = UDim.new(0, 1), SortOrder = Enum.SortOrder.LayoutOrder }),
                 })
-                Tween(menu, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(width, height) })
+
+                local scroll = New("ScrollingFrame", {
+                    Size = UDim2.fromScale(1, 1),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    ScrollBarThickness = needsScroll and 3 or 0,
+                    ScrollBarImageColor3 = Theme.White,
+                    ScrollBarImageTransparency = 0.6,
+                    VerticalScrollBarInset = Enum.ScrollBarInset.None,
+                    ScrollingDirection = Enum.ScrollingDirection.Y,
+                    CanvasSize = UDim2.new(0, 0, 0, 0),
+                    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                    ElasticBehavior = Enum.ElasticBehavior.WhenScrollable,
+                    Active = true,
+                    ClipsDescendants = true,
+                    ZIndex = 61,
+                    Parent = menu,
+                }, {
+                    New("UIPadding", {
+                        PaddingTop = UDim.new(0, 4),
+                        PaddingBottom = UDim.new(0, 4),
+                        PaddingLeft = UDim.new(0, 4),
+                        PaddingRight = UDim.new(0, needsScroll and 6 or 4),
+                    }),
+                    New("UIListLayout", {
+                        Padding = UDim.new(0, 1),
+                        SortOrder = Enum.SortOrder.LayoutOrder,
+                    }),
+                })
+
+                Tween(menu, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(width, dropdownHeight) })
 
                 for i, option in ipairs(options) do
                     local isChecked = selectedMap[option] == true
@@ -1707,17 +1803,18 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                         BackgroundTransparency = isChecked and 0 or 1,
                         BorderSizePixel = 0,
                         AutoButtonColor = false,
+                        Active = false,
                         Text = (isChecked and "[x]  " or "[ ]  ") .. tostring(option),
                         Font = Enum.Font.GothamMedium,
                         TextSize = 11,
                         TextColor3 = isChecked and Theme.Text or Theme.Dim,
                         TextXAlignment = Enum.TextXAlignment.Left,
                         LayoutOrder = i,
-                        ZIndex = 51,
-                        Parent = menu,
+                        ZIndex = 62,
+                        Parent = scroll,
                     }, { Corner(6), New("UIPadding", { PaddingLeft = UDim.new(0, 8) }) })
 
-                    item.MouseButton1Click:Connect(function()
+                    item.Activated:Connect(function()
                         selectedMap[option] = not selectedMap[option]
                         local checked = selectedMap[option] == true
                         item.Text = (checked and "[x]  " or "[ ]  ") .. tostring(option)
