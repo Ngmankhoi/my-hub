@@ -1592,8 +1592,8 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                 if menu then
                     local m = menu
                     menu = nil
-                    Tween(m, 0.18, nil, nil, { Size = UDim2.fromOffset(m.Size.X.Offset, 0) })
-                    task.delay(0.2, function() pcall(function() m:Destroy() end) end)
+                    Tween(m, 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundTransparency = 1 })
+                    task.delay(0.16, function() pcall(function() m:Destroy() end) end)
                 end
             end
             local function set(v)
@@ -1602,7 +1602,12 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                 if cfg.Callback then task.spawn(cfg.Callback, v) end
             end
 
+            local isTriggering = false
             local function onFieldTrigger()
+                if isTriggering then return end
+                isTriggering = true
+                task.delay(0.25, function() isTriggering = false end)
+
                 if menu then close() return end
                 dismissDropdown()
                 closeOpenDropdown = close
@@ -1610,7 +1615,7 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
 
                 local curScale = (Window and Window.Scale and Window.Scale.Scale) or 1
                 if curScale <= 0 then curScale = 1 end
-                local unscaledWidth = math.max(130, math.floor(field.AbsoluteSize.X / curScale))
+                local unscaledWidth = math.max(160, math.floor(field.AbsoluteSize.X / curScale))
 
                 local maxVisibleHeight = 185
                 local itemHeight = 28
@@ -1620,19 +1625,29 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
 
                 local cam = workspace.CurrentCamera
                 local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+                local screenW = vp.X
                 local screenH = vp.Y
+
                 local anchorY = 0
                 local spawnY = field.AbsolutePosition.Y + field.AbsoluteSize.Y + 4
-                if (spawnY + dropdownHeight * curScale) > (screenH - 10) then
+                if (spawnY + dropdownHeight * curScale) > (screenH - 12) then
                     anchorY = 1
-                    spawnY = field.AbsolutePosition.Y - 4
+                    spawnY = math.max(12, field.AbsolutePosition.Y - 4)
                 end
+
                 local spawnX = field.AbsolutePosition.X + field.AbsoluteSize.X
+                local visualW = unscaledWidth * curScale
+                if spawnX > screenW - 8 then
+                    spawnX = screenW - 8
+                end
+                if spawnX - visualW < 8 then
+                    spawnX = visualW + 8
+                end
 
                 menu = New("Frame", {
                     AnchorPoint = Vector2.new(1, anchorY),
                     Position = UDim2.fromOffset(spawnX, spawnY),
-                    Size = UDim2.fromOffset(unscaledWidth, 0),
+                    Size = UDim2.fromOffset(unscaledWidth, dropdownHeight),
                     BackgroundColor3 = Theme.Menu,
                     BorderSizePixel = 0,
                     ClipsDescendants = true,
@@ -1673,8 +1688,6 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                     }),
                 })
 
-                Tween(menu, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(unscaledWidth, dropdownHeight) })
-
                 for i, option in ipairs(options) do
                     local selected = option == value
                     local item = New("TextButton", {
@@ -1704,10 +1717,10 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                         })
                     end)
 
-                    local chosen = false
+                    local itemSelected = false
                     local function onSelect()
-                        if chosen then return end
-                        chosen = true
+                        if itemSelected then return end
+                        itemSelected = true
                         set(option)
                         close()
                     end
@@ -1717,18 +1730,22 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                     end
                 end
 
-                closeConn = TrackConn(UserInputService.InputBegan:Connect(function(input)
-                    if menu and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-                        local pos = input.Position
-                        local a, s = menu.AbsolutePosition, menu.AbsoluteSize
-                        local f, fs = field.AbsolutePosition, field.AbsoluteSize
-                        local inMenu = pos.X >= a.X and pos.X <= a.X + s.X and pos.Y >= a.Y and pos.Y <= a.Y + s.Y
-                        local inField = pos.X >= f.X and pos.X <= f.X + fs.X and pos.Y >= f.Y and pos.Y <= f.Y + fs.Y
-                        if not inMenu and not inField then
-                            task.defer(close)
+                task.delay(0.1, function()
+                    if not menu then return end
+                    closeConn = TrackConn(UserInputService.InputBegan:Connect(function(input)
+                        if not menu then return end
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            local pos = input.Position
+                            local a, s = menu.AbsolutePosition, menu.AbsoluteSize
+                            local f, fs = field.AbsolutePosition, field.AbsoluteSize
+                            local inMenu = (pos.X >= a.X - 4 and pos.X <= a.X + s.X + 4 and pos.Y >= a.Y - 4 and pos.Y <= a.Y + s.Y + 4)
+                            local inField = (pos.X >= f.X - 4 and pos.X <= f.X + fs.X + 4 and pos.Y >= f.Y - 4 and pos.Y <= f.Y + fs.Y + 4)
+                            if not inMenu and not inField then
+                                task.defer(close)
+                            end
                         end
-                    end
-                end))
+                    end))
+                end)
             end
 
             field.MouseButton1Click:Connect(onFieldTrigger)
@@ -1786,12 +1803,17 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                 if menu then
                     local m = menu
                     menu = nil
-                    Tween(m, 0.18, nil, nil, { Size = UDim2.fromOffset(m.Size.X.Offset, 0) })
-                    task.delay(0.2, function() pcall(function() m:Destroy() end) end)
+                    Tween(m, 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, { BackgroundTransparency = 1 })
+                    task.delay(0.16, function() pcall(function() m:Destroy() end) end)
                 end
             end
 
+            local isTriggering = false
             local function onFieldTrigger()
+                if isTriggering then return end
+                isTriggering = true
+                task.delay(0.25, function() isTriggering = false end)
+
                 if menu then close() return end
                 dismissDropdown()
                 closeOpenDropdown = close
@@ -1799,7 +1821,7 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
 
                 local curScale = (Window and Window.Scale and Window.Scale.Scale) or 1
                 if curScale <= 0 then curScale = 1 end
-                local unscaledWidth = math.max(140, math.floor(field.AbsoluteSize.X / curScale))
+                local unscaledWidth = math.max(160, math.floor(field.AbsoluteSize.X / curScale))
 
                 local maxVisibleHeight = 185
                 local itemHeight = 28
@@ -1809,19 +1831,29 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
 
                 local cam = workspace.CurrentCamera
                 local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+                local screenW = vp.X
                 local screenH = vp.Y
+
                 local anchorY = 0
                 local spawnY = field.AbsolutePosition.Y + field.AbsoluteSize.Y + 4
-                if (spawnY + dropdownHeight * curScale) > (screenH - 10) then
+                if (spawnY + dropdownHeight * curScale) > (screenH - 12) then
                     anchorY = 1
-                    spawnY = field.AbsolutePosition.Y - 4
+                    spawnY = math.max(12, field.AbsolutePosition.Y - 4)
                 end
+
                 local spawnX = field.AbsolutePosition.X + field.AbsoluteSize.X
+                local visualW = unscaledWidth * curScale
+                if spawnX > screenW - 8 then
+                    spawnX = screenW - 8
+                end
+                if spawnX - visualW < 8 then
+                    spawnX = visualW + 8
+                end
 
                 menu = New("Frame", {
                     AnchorPoint = Vector2.new(1, anchorY),
                     Position = UDim2.fromOffset(spawnX, spawnY),
-                    Size = UDim2.fromOffset(unscaledWidth, 0),
+                    Size = UDim2.fromOffset(unscaledWidth, dropdownHeight),
                     BackgroundColor3 = Theme.Menu,
                     BorderSizePixel = 0,
                     ClipsDescendants = true,
@@ -1861,8 +1893,6 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                         SortOrder = Enum.SortOrder.LayoutOrder,
                     }),
                 })
-
-                Tween(menu, 0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out, { Size = UDim2.fromOffset(unscaledWidth, dropdownHeight) })
 
                 for i, option in ipairs(options) do
                     local optStr = tostring(option)
@@ -1943,18 +1973,22 @@ NexusLib.CreateYouTubePanel = NexusLib.CreateMusicPanel
                     end
                 end
 
-                closeConn = TrackConn(UserInputService.InputBegan:Connect(function(input)
-                    if menu and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-                        local pos = input.Position
-                        local a, s = menu.AbsolutePosition, menu.AbsoluteSize
-                        local f, fs = field.AbsolutePosition, field.AbsoluteSize
-                        local inMenu = pos.X >= a.X and pos.X <= a.X + s.X and pos.Y >= a.Y and pos.Y <= a.Y + s.Y
-                        local inField = pos.X >= f.X and pos.X <= f.X + fs.X and pos.Y >= f.Y and pos.Y <= f.Y + fs.Y
-                        if not inMenu and not inField then
-                            task.defer(close)
+                task.delay(0.1, function()
+                    if not menu then return end
+                    closeConn = TrackConn(UserInputService.InputBegan:Connect(function(input)
+                        if not menu then return end
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            local pos = input.Position
+                            local a, s = menu.AbsolutePosition, menu.AbsoluteSize
+                            local f, fs = field.AbsolutePosition, field.AbsoluteSize
+                            local inMenu = (pos.X >= a.X - 4 and pos.X <= a.X + s.X + 4 and pos.Y >= a.Y - 4 and pos.Y <= a.Y + s.Y + 4)
+                            local inField = (pos.X >= f.X - 4 and pos.X <= f.X + fs.X + 4 and pos.Y >= f.Y - 4 and pos.Y <= f.Y + fs.Y + 4)
+                            if not inMenu and not inField then
+                                task.defer(close)
+                            end
                         end
-                    end
-                end))
+                    end))
+                end)
             end
 
             field.MouseButton1Click:Connect(onFieldTrigger)
